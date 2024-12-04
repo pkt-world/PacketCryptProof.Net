@@ -334,18 +334,16 @@ namespace PacketCryptProof {
 				case RHOpCodes.OpCode_ADD8:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
-					@out = (uint)(Byte)((Byte)a + (Byte)b);
-					@out |= (uint)((Byte)((Byte)(a >> 8) + (Byte)(b >> 8))) << 8;
-					@out |= (uint)((Byte)((Byte)(a >> 16) + (Byte)(b >> 16))) << 16;
-					@out |= (uint)((Byte)((Byte)(a >> 24) + (Byte)(b >> 24))) << 24;
+					@out = ((a & 0x00FF00FF) + (b & 0x00FF00FF)) & 0x00FF00FF;
+					@out |= ((a & 0xFF00FF00) + (b & 0xFF00FF00)) & 0xFF00FF00;
 					DEBUGF(ctx, "ADD8 {0:x08} {1:x08} -> {2:x08}", a, b, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_ADD16:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
-					@out = (uint)(UInt16)((UInt16)a + (UInt16)b);
-					@out |= (uint)((UInt16)((UInt16)(a >> 16) + (UInt16)(b >> 16))) << 16;
+					@out = ((a & 0x0000FFFF) + (b & 0x0000FFFF)) & 0x0000FFFF;
+					@out |= (a & 0xFFFF0000) + (b & 0xFFFF0000);
 					DEBUGF(ctx, "ADD16 {0:x08} {1:x08} -> {2:x08}", a, b, @out);
 					out1(ctx, @out);
 					break;
@@ -359,18 +357,18 @@ namespace PacketCryptProof {
 				case RHOpCodes.OpCode_SUB8:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
-					@out = (uint)(Byte)((Byte)a - (Byte)b);
-					@out |= (uint)((Byte)((Byte)(a >> 8) - (Byte)(b >> 8))) << 8;
-					@out |= (uint)((Byte)((Byte)(a >> 16) - (Byte)(b >> 16))) << 16;
-					@out |= (uint)((Byte)((Byte)(a >> 24) - (Byte)(b >> 24))) << 24;
+					@out = ((a & 0x000000FF) - (b & 0x000000FF)) & 0x000000FF;
+					@out |= ((a & 0x0000FF00) - (b & 0x0000FF00)) & 0x0000FF00;
+					@out |= ((a & 0x00FF0000) - (b & 0x00FF0000)) & 0x00FF0000;
+					@out |= (a & 0xFF000000) - (b & 0xFF000000);
 					DEBUGF(ctx, "SUB8 {0:x08} {1:x08} -> {2:x08}", a, b, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_SUB16:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
-					@out = (uint)(UInt16)((UInt16)a - (UInt16)b);
-					@out |= (uint)((UInt16)((UInt16)(a >> 16) - (UInt16)(b >> 16))) << 16;
+					@out = ((a & 0x0000FFFF) - (b & 0x0000FFFF)) & 0x0000FFFF;
+					@out |= (a & 0xFFFF0000) - (b & 0xFFFF0000);
 					DEBUGF(ctx, "SUB16 {0:x08} {1:x08} -> {2:x08}", a, b, @out);
 					out1(ctx, @out);
 					break;
@@ -384,10 +382,10 @@ namespace PacketCryptProof {
 				case RHOpCodes.OpCode_SHLL8:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
-					@out = (uint)(Byte)((Byte)a << ((Byte)b & 7));
-					@out |= (uint)((Byte)((Byte)(a >> 8) << ((Byte)(b >> 8) & 7))) << 8;
-					@out |= (uint)((Byte)((Byte)(a >> 16) << ((Byte)(b >> 16) & 7))) << 16;
-					@out |= (uint)((Byte)((Byte)(a >> 24) << ((Byte)(b >> 24) & 7))) << 24;
+					@out = ((a & 0x000000FF) << (int)(b & 7)) & 0x000000FF;
+					@out |= ((a & 0x0000FF00) << (int)((b >> 8) & 7)) & 0x0000FF00;
+					@out |= ((a & 0x00FF0000) << (int)((b >> 16) & 7)) & 0x00FF0000;
+					@out |= ((a & 0xFF000000) << (int)((b >> 24) & 7)) & 0xFF000000;
 					DEBUGF(ctx, "SHLL8 {0:x08} {1:x08} -> {2:x08}", a, b, @out);
 					out1(ctx, @out);
 					break;
@@ -530,265 +528,223 @@ namespace PacketCryptProof {
 				case RHOpCodes.OpCode_ADD8C:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
-					@outl = (UInt64)(UInt16)((UInt16)(Byte)a + (UInt16)(Byte)b);
-					@outl |= (UInt64)((UInt16)((UInt16)(Byte)(a >> 8) + (UInt16)(Byte)(b >> 8))) << 16;
-					@outl |= (UInt64)((UInt16)((UInt16)(Byte)(a >> 16) + (UInt16)(Byte)(b >> 16))) << 32;
-					@outl |= (UInt64)((UInt16)((UInt16)(Byte)(a >> 24) + (UInt16)(Byte)(b >> 24))) << 48;
-					DEBUGF(ctx, "ADD8C {0:x08} {1:x08} -> {2:x08} {3:x08}", a, b, (UInt32)@outl, (UInt32)(@outl >> 32));
-					out2(ctx, @outl);
+					outl = (UInt64)(UInt16)((UInt16)(Byte)a + (UInt16)(Byte)b);
+					outl |= (UInt64)((UInt16)((UInt16)(Byte)(a >> 8) + (UInt16)(Byte)(b >> 8))) << 16;
+					outl |= (UInt64)((UInt16)((UInt16)(Byte)(a >> 16) + (UInt16)(Byte)(b >> 16))) << 32;
+					outl |= (UInt64)((UInt16)((UInt16)(Byte)(a >> 24) + (UInt16)(Byte)(b >> 24))) << 48;
+					DEBUGF(ctx, "ADD8C {0:x08} {1:x08} -> {2:x08} {3:x08}", a, b, (UInt32)outl, (UInt32)(outl >> 32));
+					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_ADD16C:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
-					@outl = (UInt64)(uint)((uint)(UInt16)a + (uint)(UInt16)b);
-					@outl |= (UInt64)((uint)((uint)(UInt16)(a >> 16) + (uint)(UInt16)(b >> 16))) << 32;
-					DEBUGF(ctx, "ADD16C {0:x08} {1:x08} -> {2:x08} {3:x08}", a, b, (UInt32)@outl, (UInt32)(@outl >> 32));
-					out2(ctx, @outl);
+					outl = (UInt64)(uint)((uint)(UInt16)a + (uint)(UInt16)b);
+					outl |= (UInt64)((uint)((uint)(UInt16)(a >> 16) + (uint)(UInt16)(b >> 16))) << 32;
+					DEBUGF(ctx, "ADD16C {0:x08} {1:x08} -> {2:x08} {3:x08}", a, b, (UInt32)outl, (UInt32)(outl >> 32));
+					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_ADD32C:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
-					@outl = (UInt64)a + (UInt64)b;
-					DEBUGF(ctx, "ADD32C {0:x08} {1:x08} -> {2:x08} {3:x08}", a, b, (UInt32)@outl, (UInt32)(@outl >> 32));
-					out2(ctx, @outl);
+					outl = (UInt64)a + (UInt64)b;
+					DEBUGF(ctx, "ADD32C {0:x08} {1:x08} -> {2:x08} {3:x08}", a, b, (UInt32)outl, (UInt32)(outl >> 32));
+					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_SUB8C:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
-					@outl = (UInt64)(UInt16)((UInt16)(Byte)a - (UInt16)(Byte)b);
-					@outl |= (UInt64)((UInt16)((UInt16)(Byte)(a >> 8) - (UInt16)(Byte)(b >> 8))) << 16;
-					@outl |= (UInt64)((UInt16)((UInt16)(Byte)(a >> 16) - (UInt16)(Byte)(b >> 16))) << 32;
-					@outl |= (UInt64)((UInt16)((UInt16)(Byte)(a >> 24) - (UInt16)(Byte)(b >> 24))) << 48;
-					DEBUGF(ctx, "SUB8C {0:x08} {1:x08} -> {2:x08} {3:x08}", a, b, (UInt32)@outl, (UInt32)(@outl >> 32));
-					out2(ctx, @outl);
+					outl = (UInt64)(UInt16)((UInt16)(Byte)a - (UInt16)(Byte)b);
+					outl |= (UInt64)((UInt16)((UInt16)(Byte)(a >> 8) - (UInt16)(Byte)(b >> 8))) << 16;
+					outl |= (UInt64)((UInt16)((UInt16)(Byte)(a >> 16) - (UInt16)(Byte)(b >> 16))) << 32;
+					outl |= (UInt64)((UInt16)((UInt16)(Byte)(a >> 24) - (UInt16)(Byte)(b >> 24))) << 48;
+					DEBUGF(ctx, "SUB8C {0:x08} {1:x08} -> {2:x08} {3:x08}", a, b, (UInt32)outl, (UInt32)(outl >> 32));
+					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_SUB16C:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
-					@outl = (UInt64)(uint)((uint)(UInt16)a - (uint)(UInt16)b);
-					@outl |= (UInt64)((uint)((uint)(UInt16)(a >> 16) - (uint)(UInt16)(b >> 16))) << 32;
-					DEBUGF(ctx, "SUB16C {0:x08} {1:x08} -> {2:x08} {3:x08}", a, b, (UInt32)@outl, (UInt32)(@outl >> 32));
-					out2(ctx, @outl);
+					outl = (UInt64)(uint)((uint)(UInt16)a - (uint)(UInt16)b);
+					outl |= (UInt64)((uint)((uint)(UInt16)(a >> 16) - (uint)(UInt16)(b >> 16))) << 32;
+					DEBUGF(ctx, "SUB16C {0:x08} {1:x08} -> {2:x08} {3:x08}", a, b, (UInt32)outl, (UInt32)(outl >> 32));
+					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_SUB32C:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
-					@outl = (UInt64)a - (UInt64)b;
-					DEBUGF(ctx, "SUB32C {0:x08} {1:x08} -> {2:x08} {3:x08}", a, b, (UInt32)@outl, (UInt32)(@outl >> 32));
-					out2(ctx, @outl);
+					outl = (UInt64)a - (UInt64)b;
+					DEBUGF(ctx, "SUB32C {0:x08} {1:x08} -> {2:x08} {3:x08}", a, b, (UInt32)outl, (UInt32)(outl >> 32));
+					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_MUL8C:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
-					@outl = (UInt64)(UInt16)((Int16)(SByte)a * (Int16)(SByte)b);
-					@outl |= (UInt64)((UInt16)((Int16)(SByte)(a >> 8) * (Int16)(SByte)(b >> 8))) << 16;
-					@outl |= (UInt64)((UInt16)((Int16)(SByte)(a >> 16) * (Int16)(SByte)(b >> 16))) << 32;
-					@outl |= (UInt64)((UInt16)((Int16)(SByte)(a >> 24) * (Int16)(SByte)(b >> 24))) << 48;
-					DEBUGF(ctx, "MUL8C {0:x08} {1:x08} -> {2:x08} {3:x08}", a, b, (UInt32)@outl, (UInt32)(@outl >> 32));
-					out2(ctx, @outl);
+					outl = (UInt64)(UInt16)((Int16)(SByte)a * (Int16)(SByte)b);
+					outl |= (UInt64)((UInt16)((Int16)(SByte)(a >> 8) * (Int16)(SByte)(b >> 8))) << 16;
+					outl |= (UInt64)((UInt16)((Int16)(SByte)(a >> 16) * (Int16)(SByte)(b >> 16))) << 32;
+					outl |= (UInt64)((UInt16)((Int16)(SByte)(a >> 24) * (Int16)(SByte)(b >> 24))) << 48;
+					DEBUGF(ctx, "MUL8C {0:x08} {1:x08} -> {2:x08} {3:x08}", a, b, (UInt32)outl, (UInt32)(outl >> 32));
+					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_MUL16C:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
-					@outl = (UInt64)(uint)((int)(Int16)a * (int)(Int16)b);
-					@outl |= (UInt64)((uint)((int)(Int16)(a >> 16) * (int)(Int16)(b >> 16))) << 32;
-					DEBUGF(ctx, "MUL16C {0:x08} {1:x08} -> {2:x08} {3:x08}", a, b, (UInt32)@outl, (UInt32)(@outl >> 32));
-					out2(ctx, @outl);
+					outl = (UInt64)(uint)((int)(Int16)a * (int)(Int16)b);
+					outl |= (UInt64)((uint)((int)(Int16)(a >> 16) * (int)(Int16)(b >> 16))) << 32;
+					DEBUGF(ctx, "MUL16C {0:x08} {1:x08} -> {2:x08} {3:x08}", a, b, (UInt32)outl, (UInt32)(outl >> 32));
+					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_MUL32C:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
-					@outl = (UInt64)((Int64)(Int32)a * (Int64)(Int32)b);
-					DEBUGF(ctx, "MUL32C {0:x08} {1:x08} -> {2:x08} {3:x08}", a, b, (UInt32)@outl, (UInt32)(@outl >> 32));
-					out2(ctx, @outl);
+					outl = (UInt64)((Int64)(Int32)a * (Int64)(Int32)b);
+					DEBUGF(ctx, "MUL32C {0:x08} {1:x08} -> {2:x08} {3:x08}", a, b, (UInt32)outl, (UInt32)(outl >> 32));
+					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_MULSU8C:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
-					@outl = (UInt64)(UInt16)((Int16)(SByte)a * (Int16)(Byte)b);
-					@outl |= (UInt64)((UInt16)((Int16)(SByte)(a >> 8) * (Int16)(Byte)(b >> 8))) << 16;
-					@outl |= (UInt64)((UInt16)((Int16)(SByte)(a >> 16) * (Int16)(Byte)(b >> 16))) << 32;
-					@outl |= (UInt64)((UInt16)((Int16)(SByte)(a >> 24) * (Int16)(Byte)(b >> 24))) << 48;
-					DEBUGF(ctx, "MULSU8C {0:x08} {1:x08} -> {2:x08} {3:x08}", a, b, (UInt32)@outl, (UInt32)(@outl >> 32));
-					out2(ctx, @outl);
+					outl = (UInt64)(UInt16)((Int16)(SByte)a * (Int16)(Byte)b);
+					outl |= (UInt64)((UInt16)((Int16)(SByte)(a >> 8) * (Int16)(Byte)(b >> 8))) << 16;
+					outl |= (UInt64)((UInt16)((Int16)(SByte)(a >> 16) * (Int16)(Byte)(b >> 16))) << 32;
+					outl |= (UInt64)((UInt16)((Int16)(SByte)(a >> 24) * (Int16)(Byte)(b >> 24))) << 48;
+					DEBUGF(ctx, "MULSU8C {0:x08} {1:x08} -> {2:x08} {3:x08}", a, b, (UInt32)outl, (UInt32)(outl >> 32));
+					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_MULSU16C:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
-					@outl = (UInt64)(uint)((int)(Int16)a * (int)(UInt16)b);
-					@outl |= (UInt64)((uint)((int)(Int16)(a >> 16) * (int)(UInt16)(b >> 16))) << 32;
-					DEBUGF(ctx, "MULSU16C {0:x08} {1:x08} -> {2:x08} {3:x08}", a, b, (UInt32)@outl, (UInt32)(@outl >> 32));
-					out2(ctx, @outl);
+					outl = (UInt64)(uint)((int)(Int16)a * (int)(UInt16)b);
+					outl |= (UInt64)((uint)((int)(Int16)(a >> 16) * (int)(UInt16)(b >> 16))) << 32;
+					DEBUGF(ctx, "MULSU16C {0:x08} {1:x08} -> {2:x08} {3:x08}", a, b, (UInt32)outl, (UInt32)(outl >> 32));
+					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_MULSU32C:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
-					@outl = (UInt64)((Int64)(Int32)a * (Int64)b);
-					DEBUGF(ctx, "MULSU32C {0:x08} {1:x08} -> {2:x08} {3:x08}", a, b, (UInt32)@outl, (UInt32)(@outl >> 32));
-					out2(ctx, @outl);
+					outl = (UInt64)((Int64)(Int32)a * (Int64)b);
+					DEBUGF(ctx, "MULSU32C {0:x08} {1:x08} -> {2:x08} {3:x08}", a, b, (UInt32)outl, (UInt32)(outl >> 32));
+					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_MULU8C:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
-					@outl = (UInt64)(UInt16)((UInt16)(Byte)a * (UInt16)(Byte)b);
-					@outl |= (UInt64)((UInt16)((UInt16)(Byte)(a >> 8) * (UInt16)(Byte)(b >> 8))) << 16;
-					@outl |= (UInt64)((UInt16)((UInt16)(Byte)(a >> 16) * (UInt16)(Byte)(b >> 16))) << 32;
-					@outl |= (UInt64)((UInt16)((UInt16)(Byte)(a >> 24) * (UInt16)(Byte)(b >> 24))) << 48;
-					DEBUGF(ctx, "MULU8C {0:x08} {1:x08} -> {2:x08} {3:x08}", a, b, (UInt32)@outl, (UInt32)(@outl >> 32));
-					out2(ctx, @outl);
+					outl = (UInt64)(UInt16)((UInt16)(Byte)a * (UInt16)(Byte)b);
+					outl |= (UInt64)((UInt16)((UInt16)(Byte)(a >> 8) * (UInt16)(Byte)(b >> 8))) << 16;
+					outl |= (UInt64)((UInt16)((UInt16)(Byte)(a >> 16) * (UInt16)(Byte)(b >> 16))) << 32;
+					outl |= (UInt64)((UInt16)((UInt16)(Byte)(a >> 24) * (UInt16)(Byte)(b >> 24))) << 48;
+					DEBUGF(ctx, "MULU8C {0:x08} {1:x08} -> {2:x08} {3:x08}", a, b, (UInt32)outl, (UInt32)(outl >> 32));
+					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_MULU16C:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
-					@outl = (UInt64)(uint)((uint)(UInt16)a * (uint)(UInt16)b);
-					@outl |= (UInt64)((uint)((uint)(UInt16)(a >> 16) * (uint)(UInt16)(b >> 16))) << 32;
-					DEBUGF(ctx, "MULU16C {0:x08} {1:x08} -> {2:x08} {3:x08}", a, b, (UInt32)@outl, (UInt32)(@outl >> 32));
-					out2(ctx, @outl);
+					outl = (UInt64)(uint)((uint)(UInt16)a * (uint)(UInt16)b);
+					outl |= (UInt64)((uint)((uint)(UInt16)(a >> 16) * (uint)(UInt16)(b >> 16))) << 32;
+					DEBUGF(ctx, "MULU16C {0:x08} {1:x08} -> {2:x08} {3:x08}", a, b, (UInt32)outl, (UInt32)(outl >> 32));
+					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_MULU32C:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
-					@outl = (UInt64)a * (UInt64)b;
-					DEBUGF(ctx, "MULU32C {0:x08} {1:x08} -> {2:x08} {3:x08}", a, b, (UInt32)@outl, (UInt32)(@outl >> 32));
-					out2(ctx, @outl);
+					outl = (UInt64)a * (UInt64)b;
+					DEBUGF(ctx, "MULU32C {0:x08} {1:x08} -> {2:x08} {3:x08}", a, b, (UInt32)outl, (UInt32)(outl >> 32));
+					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_ADD64:
 					al = getA2(ctx, insn);
 					bl = getB2(ctx, insn);
-					@outl = al + bl;
-					DEBUGF(ctx, "ADD64 {0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08}", (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)@outl, (UInt32)(@outl >> 32));
-					out2(ctx, @outl);
+					outl = al + bl;
+					DEBUGF(ctx, "ADD64 {0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08}", (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)outl, (UInt32)(outl >> 32));
+					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_SUB64:
 					al = getA2(ctx, insn);
 					bl = getB2(ctx, insn);
-					@outl = al - bl;
-					DEBUGF(ctx, "SUB64 {0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08}", (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)@outl, (UInt32)(@outl >> 32));
-					out2(ctx, @outl);
+					outl = al - bl;
+					DEBUGF(ctx, "SUB64 {0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08}", (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)outl, (UInt32)(outl >> 32));
+					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_SHLL64:
 					al = getA2(ctx, insn);
 					bl = getB2(ctx, insn);
 					outl = (UInt64)(al << (int)(bl & 63));
-					DEBUGF(ctx, "SHLL64 {0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08}", (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)@outl, (UInt32)(@outl >> 32));
-					out2(ctx, @outl);
+					DEBUGF(ctx, "SHLL64 {0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08}", (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)outl, (UInt32)(outl >> 32));
+					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_SHRL64:
 					al = getA2(ctx, insn);
 					bl = getB2(ctx, insn);
 					outl = (UInt64)(al >> (int)(bl & 63));
-					DEBUGF(ctx, "SHRL64 {0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08}", (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)@outl, (UInt32)(@outl >> 32));
-					out2(ctx, @outl);
+					DEBUGF(ctx, "SHRL64 {0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08}", (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)outl, (UInt32)(outl >> 32));
+					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_SHRA64:
 					al = getA2(ctx, insn);
 					bl = getB2(ctx, insn);
 					outl = (UInt64)((Int64)al >> (int)(bl & 63));
-					DEBUGF(ctx, "SHRA64 {0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08}", (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)@outl, (UInt32)(@outl >> 32));
+					DEBUGF(ctx, "SHRA64 {0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08}", (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)outl, (UInt32)(outl >> 32));
 					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_ROTL64:
 					al = getA2(ctx, insn);
 					bl = getB2(ctx, insn);
 					outl = BitOperations.RotateLeft(al, (int)bl);
-					DEBUGF(ctx, "ROTL64 {0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08}", (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)@outl, (UInt32)(@outl >> 32));
+					DEBUGF(ctx, "ROTL64 {0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08}", (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)outl, (UInt32)(outl >> 32));
 					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_ROTR64:
 					al = getA2(ctx, insn);
 					bl = getB2(ctx, insn);
 					outl = BitOperations.RotateRight(al, (int)bl);
-					DEBUGF(ctx, "ROTR64 {0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08}", (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)@outl, (UInt32)(@outl >> 32));
+					DEBUGF(ctx, "ROTR64 {0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08}", (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)outl, (UInt32)(outl >> 32));
 					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_MUL64:
 					al = getA2(ctx, insn);
 					bl = getB2(ctx, insn);
 					outl = al * bl;
-					DEBUGF(ctx, "MUL64 {0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08}", (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)@outl, (UInt32)(@outl >> 32));
-					out2(ctx, @outl);
+					DEBUGF(ctx, "MUL64 {0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08}", (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)outl, (UInt32)(outl >> 32));
+					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_ADD64C:
 					al = getA2(ctx, insn);
 					bl = getB2(ctx, insn);
-					@outl = al + bl;
-					@outx = new UInt128(@outl < bl ? 1u : 0, @outl);
-					DEBUGF(ctx, "ADD64C {0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08} {6:x08} {7:x08}", (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)@outx, (UInt32)(@outx >> 32), (UInt32)(@outx >> 64), (UInt32)(@outx >> 96));
-					out4(ctx, @outx);
+					outx = (UInt128)al + (UInt128)bl;
+					DEBUGF(ctx, "ADD64C {0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08} {6:x08} {7:x08}", (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)outx, (UInt32)(outx >> 32), (UInt32)(outx >> 64), (UInt32)(outx >> 96));
+					out4(ctx, outx);
 					break;
 				case RHOpCodes.OpCode_SUB64C:
 					al = getA2(ctx, insn);
 					bl = getB2(ctx, insn);
-					@outx = new UInt128(0UL - (al < bl ? 1UL : 0UL), al - bl);
-					DEBUGF(ctx, "SUB64C {0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08} {6:x08} {7:x08}", (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)@outx, (UInt32)(@outx >> 32), (UInt32)(@outx >> 64), (UInt32)(@outx >> 96));
-					out4(ctx, @outx);
+					outx = (UInt128)al - (UInt128)bl;
+					DEBUGF(ctx, "SUB64C {0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08} {6:x08} {7:x08}", (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)outx, (UInt32)(outx >> 32), (UInt32)(outx >> 64), (UInt32)(outx >> 96));
+					out4(ctx, outx);
 					break;
 				case RHOpCodes.OpCode_MUL64C:
 					al = getA2(ctx, insn);
 					bl = getB2(ctx, insn);
-					outx = new UInt128(mulh64((Int64)al, (Int64)bl), al * bl);
-					DEBUGF(ctx, "MUL64C {0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08} {6:x08} {7:x08}", (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)@outx, (UInt32)(@outx >> 32), (UInt32)(@outx >> 64), (UInt32)(@outx >> 96));
-					out4(ctx, @outx);
+					outx = (UInt128)((Int128)(Int64)al * (Int128)(Int64)bl);
+					DEBUGF(ctx, "MUL64C {0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08} {6:x08} {7:x08}", (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)outx, (UInt32)(outx >> 32), (UInt32)(outx >> 64), (UInt32)(outx >> 96));
+					out4(ctx, outx);
 					break;
 				case RHOpCodes.OpCode_MULSU64C:
 					al = getA2(ctx, insn);
 					bl = getB2(ctx, insn); ;
-					@outx = new UInt128(mulhsu64((Int64)al, bl), al * bl);
-					DEBUGF(ctx, "MULSU64C {0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08} {6:x08} {7:x08}", (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)@outx, (UInt32)(@outx >> 32), (UInt32)(@outx >> 64), (UInt32)(@outx >> 96));
-					out4(ctx, @outx);
+					outx = (UInt128)((Int128)(Int64)al * (Int128)bl);
+					DEBUGF(ctx, "MULSU64C {0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08} {6:x08} {7:x08}", (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)outx, (UInt32)(outx >> 32), (UInt32)(outx >> 64), (UInt32)(outx >> 96));
+					out4(ctx, outx);
 					break;
 				case RHOpCodes.OpCode_MULU64C:
 					al = getA2(ctx, insn);
 					bl = getB2(ctx, insn);
-					outx = new UInt128(mulhu64(al, bl), al * bl);
-					DEBUGF(ctx, "MULU64C {0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08} {6:x08} {7:x08}", (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)@outx, (UInt32)(@outx >> 32), (UInt32)(@outx >> 64), (UInt32)(@outx >> 96));
-					out4(ctx, @outx);
+					outx = (UInt128)al * (UInt128)bl;
+					DEBUGF(ctx, "MULU64C {0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08} {6:x08} {7:x08}", (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)outx, (UInt32)(outx >> 32), (UInt32)(outx >> 64), (UInt32)(outx >> 96));
+					out4(ctx, outx);
 					break;
 				default:
 					throw new Exception("unexpected instruction " + op.ToString());
 					break;
 			}
-		}
-
-		private static UInt64 mulhu64(UInt64 a, UInt64 b) {
-			var a0 = (UInt32)(a);
-			var a1 = (UInt32)((a >> 32));
-			var b0 = (UInt32)(b);
-			var b1 = (UInt32)((b >> 32));
-			var r00 = (UInt64)(((UInt64)(a0) * (UInt64)(b0)));
-			var r01 = (UInt64)(((UInt64)(a0) * (UInt64)(b1)));
-			var r10 = (UInt64)(((UInt64)(a1) * (UInt64)(b0)));
-			var r11 = (UInt64)(((UInt64)(a1) * (UInt64)(b1)));
-			var c = (UInt64)(((r00 >> 32) + (UInt64)((UInt32)(r01)) + (UInt64)((UInt32)(r10))));
-			c = (c >> 32) + (r01 >> 32) + (r10 >> 32) + (UInt64)((UInt32)(r11));
-			var r2 = (UInt32)(c);
-			var r3 = (UInt32)(((c >> 32) + (r11 >> 32)));
-			return ((UInt64)(r3) << 32) | (UInt64)(r2);
-		}
-
-		private static UInt64 mulh64(Int64 a, Int64 b) {
-			var negate = (((a < 0) != (b < 0)));
-			var _a = (UInt64)a;
-			var _b = (UInt64)b;
-			if (a < 0) _a = (UInt64)(-a);
-			if (b < 0) _b = (UInt64)(-b);
-			var res = (UInt64)(mulhu64(_a, _b));
-			if (negate) {
-				res = ~res;
-				if (a * b == 0) res++;
-			}
-			return res;
-		}
-		private static UInt64 mulhsu64(Int64 a, UInt64 b) {
-			var negate = ((a < 0));
-			var _a = (UInt64)a;
-			if (a < 0) _a = (UInt64)(-a);
-			var res = (UInt64)(mulhu64(_a, b));
-			if (negate) {
-				res = ~res;
-				if ((UInt64)(a) * b == 0) res++;
-			}
-			return res;
 		}
 	}
 }
