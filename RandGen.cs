@@ -1,11 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
+﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
-using static PacketCryptProof.PcCompress_t;
 
 namespace PacketCryptProof {
 	internal static partial class RandGen {
@@ -41,36 +35,19 @@ namespace PacketCryptProof {
 		private static partial int RandGen_generate(Span<UInt32> buf, ReadOnlySpan<Byte> seed);
 
 		public static UInt32[] Generate(Span<Byte> seed) {
-			//    uint32_t* elems; 			uint32_t count; 			uint32_t max;
-			//int RandGen_generate(uint32_t buf[Conf_RandGen_MAX_INSNS], Buf32_t* seed, Vec* vars)
 			UInt32[] insns = new uint[Conf_RandGen_MAX_INSNS];
-			//IntPtr vars = Marshal.AllocHGlobal(8 + 4 + 4);
-			//Marshal.WriteIntPtr(vars, 0);
-			//Marshal.WriteInt32(vars, 8, 0);
-			//Marshal.WriteInt32(vars, 12, 0);
-			//int len = RandGen_generate(insns, seed, vars);
 			int len = RandGen_generate(insns, seed);
-			//int varcount = Marshal.ReadInt32(vars, 8);
-			//int varmax = Marshal.ReadInt32(vars, 12);
-			//if (Marshal.ReadIntPtr(vars) != IntPtr.Zero) Marshal.FreeHGlobal(Marshal.ReadIntPtr(vars));
-			//Marshal.FreeHGlobal(vars);
 			Array.Resize(ref insns, len);
-			//return insns;
-
 
 			UInt32 budget = Conf_RandGen_INITIAL_BUDGET;
 			Context ctx = new Context();
 			seed.CopyTo(ctx.randseed);
 			ctx.nextInt = UInt32.MaxValue;
-			//ctx.insns.max = Conf_RandGen_MAX_INSNS;
-			//ctx.insns.elems = buf;
-			//ctx.insns = new UInt32[Conf_RandGen_MAX_INSNS];
 
 			loop(ctx, ref budget);
 
 			if (ctx.tooBig) return null;
 
-			//Debug.Assert(varcount == ctx.vars.Count);
 			Debug.Assert(MemoryExtensions.SequenceEqual<UInt32>(insns, ctx.insns.ToArray()));
 
 			return ctx.insns.ToArray();

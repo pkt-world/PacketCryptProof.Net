@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Runtime.ExceptionServices;
-
-namespace PacketCryptProof {
+﻿namespace PacketCryptProof {
 	public class Validator {
 		const int PacketCrypt_NUM_ANNS = 4;
 

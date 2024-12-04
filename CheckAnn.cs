@@ -1,13 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
+﻿using System.Diagnostics;
 using System.Numerics;
-using System.Reflection.PortableExecutable;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
-using static PacketCryptProof.PcCompress_t;
 
 namespace PacketCryptProof {
 	internal static partial class CheckAnn {
@@ -85,7 +78,6 @@ namespace PacketCryptProof {
 
 			Span<Byte> annHash = new Byte[32];
 			Crypto.generichash_blake2b(annHash, announcement);
-			//Console.WriteLine("Validate ann pbh={0} {1} hash={2}", GetParentBlockHeight(announcement), BitConverter.ToString(parentBlockHash.ToArray().Reverse().ToArray()).Replace("-", ""), BitConverter.ToString(annHash.ToArray().Reverse().ToArray()).Replace("-", ""));
 
 			UInt32 version = GetVersion(announcement);
 			if (version > 0 && GetParentBlockHeight(announcement) < 103869) return Validate_checkAnn_ANN_VERSION_NOT_ALLOWED;
@@ -101,9 +93,7 @@ namespace PacketCryptProof {
 			_ann.Slice(1, 3).Clear(); //Clear softnonce
 
 			Span<Byte> annHash0 = stackalloc Byte[64];
-			//Console.WriteLine("annHash0={0}", BitConverter.ToString(_ann.Slice(0, 88 + 64).ToArray()).Replace("-", ""));
 			Crypto.generichash_blake2b(annHash0, _ann.Slice(0, 88 + 64));
-			//Console.WriteLine("annHash0={0}", BitConverter.ToString(annHash0.ToArray()).Replace("-", ""));
 
 			ann.Slice(88 + 64 * 13, 64).CopyTo(_ann.Slice(88 + 64 * 0, 64)); //Buf_OBJCPY(&_ann.merkleProof.sixtyfours[0], &ann->merkleProof.sixtyfours[13]);
 
@@ -144,7 +134,6 @@ namespace PacketCryptProof {
 					var prog_2 = RandGen.Generate((new Span<Byte>(item)).Slice(32 * 31, 32));
 					if (!RandHashInterpreter.Interpret(prog_2, state, item, 4)) return -1;
 				}
-				//Console.WriteLine("Cycle cycle={0}", BitConverter.ToString(state.ToArray()).Replace("-", ""));
 				CryptoCycle.Update(state, item, null);
 			}
 
@@ -170,6 +159,8 @@ namespace PacketCryptProof {
 			if (!Difficulty.CheckHash((new Span<Byte>(state)).Slice(0, 32), workBits)) return Validate_checkAnn_INSUF_POW;
 
 			Debug.Assert(caAnnHashOut.SequenceEqual((new Span<Byte>(state)).Slice(0, 32)));
+
+			Debug.Assert(caret == 0);
 
 			return Validate_checkAnn_OK;
 		}
@@ -240,21 +231,13 @@ namespace PacketCryptProof {
 			return ann.Slice(24, 32).SequenceEqual(hash);
 		}
 
-		[LibraryImport("packetcrypt.dll")]
-		private static partial void Announce_mkitem(UInt64 num, Span<Byte> item, ReadOnlySpan<Byte> seed);
-
 		private static void MkItem(uint itemNo, Span<Byte> item, ReadOnlySpan<Byte> seed) {
-			Span<Byte> item2 = item.ToArray();
-			Announce_mkitem(itemNo, item2, seed);
-
 			const int announceItemHashcount = 1024 / 64;
 			CryptoCycle.Hash_expand(item.Slice(0, 64), seed, itemNo);
 			for (int i = 1; i < announceItemHashcount; i++) {
 				Crypto.generichash_blake2b(item.Slice(64 * i, 64), item.Slice(64 * (i - 1), 64));
 			}
 			memocycle(item, announceItemHashcount, 2);
-
-			System.Diagnostics.Debug.Assert(item.SequenceEqual(item2));
 		}
 
 		private static void memocycle(Span<Byte> item, int bufcount, int cycles) {

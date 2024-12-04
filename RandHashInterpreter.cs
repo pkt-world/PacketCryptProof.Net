@@ -8,7 +8,6 @@ using System.Runtime.Intrinsics.X86;
 namespace PacketCryptProof {
 	internal static partial class RandHashInterpreter {
 		[LibraryImport("packetcrypt.dll")]
-		//private static partial int RandHash_interpret2(IntPtr ctx, UInt64 itemNum, Span<Byte> state, int cycles);
 		private static partial int RandHash_interpret(ReadOnlySpan<UInt32> progbuf, Span<Byte> ccState, Span<UInt32> memory, int progLen, UInt32 memorySizeBytes, int cycles);
 
 		public unsafe static Boolean Interpret(Memory<UInt32> prog, Memory<Byte> ccState, Memory<Byte> memory, int cycles) {
@@ -17,23 +16,6 @@ namespace PacketCryptProof {
 
 			Memory<Byte> ccState2 = ccState.ToArray();
 			Memory<Byte> memory2 = memory.ToArray();
-
-			/*
-			//struct PacketCrypt_ValidateCtx_s { 0 uint32_t* memory; 8 uint32_t* hashIn; 16 uint32_t* hashOut; 24 int progLen; 28 int hashctr; 32 int loopCycle; 36 int varCount; 40 uint64_t opCtr; 48 Vec vars; 64 Vec scopes; 80 uint32_t progbuf[2048]; };
-			IntPtr ctx2 = Marshal.AllocHGlobal(80 + 2048 * 4 + 4096);
-			(new Span<Byte>((Byte*)ctx2, 80 + 2048 * 4 + 4096)).Fill(0);
-			fixed (void* memoryptr = memory2.Span, progptr = prog.Span) {
-				Marshal.WriteIntPtr(ctx2, 0, (nint)memoryptr);
-				Marshal.WriteInt32(ctx2, 24, prog.Length);
-				Marshal.Copy(MemoryMarshal.AsBytes<UInt32>(prog.Span).ToArray(), 0, (nint)ctx2 + 80, prog.Length * 4);
-				int ret = RandHash_interpret2(ctx2, 0, ccState2.Span, cycles);
-				Debug.Assert(ret == 0);
-				//return ret == 0;
-			}
-
-			Span<UInt32> stack2 = new Span<uint>((uint*)Marshal.ReadIntPtr(ctx2, 48), Marshal.ReadInt32(ctx2, 56));
-			Span<Int32> scopes2 = new Span<int>((int*)Marshal.ReadIntPtr(ctx2, 64), Marshal.ReadInt32(ctx2, 72));
-			*/
 
 			RandHash_interpret(prog.ToArray(), ccState2.Span, MemoryMarshal.Cast<Byte, UInt32>(memory2.Span), prog.Length, (uint)memory.Length, cycles);
 
@@ -60,20 +42,11 @@ namespace PacketCryptProof {
 				ctx.hashIn = tmp;
 			}
 
-			//Debug.Assert(ctx.varCount == Marshal.ReadInt32(ctx2, 36));
 			Debug.Assert(memory.Span.SequenceEqual(memory2.Span));
-			//Debug.Assert(scopes2.SequenceEqual(ctx.scopes.ToArray()));
-			//Debug.Assert(stack2.SequenceEqual(ctx.stack.ToArray()));
 			for (int i = 0; i < 2048 / 4; i++) {
 				if (MemoryMarshal.Cast<Byte, UInt32>(ccState.Span)[i] != MemoryMarshal.Cast<Byte, UInt32>(ccState2.Span)[i]) Console.WriteLine("Diff at {0}: good = {1:x08} bad = {2:x08}", i, MemoryMarshal.Cast<Byte, UInt32>(ccState2.Span)[i], MemoryMarshal.Cast<Byte, UInt32>(ccState.Span)[i]);
 			}
 			Debug.Assert(ccState.Span.SequenceEqual(ccState2.Span));
-
-			//Marshal.FreeHGlobal(Marshal.ReadIntPtr(ctx2, 48));
-			//Marshal.FreeHGlobal(Marshal.ReadIntPtr(ctx2, 64));
-			//Marshal.FreeHGlobal(ctx2);
-
-			//Environment.Exit(1);
 
 			return true;
 		}
@@ -738,7 +711,6 @@ namespace PacketCryptProof {
 				case RHOpCodes.OpCode_ADD64C:
 					al = getA2(ctx, insn);
 					bl = getB2(ctx, insn);
-					//@outx = (UInt128)((UInt128)al + (UInt128)bl);
 					@outl = al + bl;
 					@outx = new UInt128(@outl < bl ? 1u : 0, @outl);
 					DEBUGF(ctx, "ADD64C {0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08} {6:x08} {7:x08}", (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)@outx, (UInt32)(@outx >> 32), (UInt32)(@outx >> 64), (UInt32)(@outx >> 96));
@@ -754,7 +726,6 @@ namespace PacketCryptProof {
 				case RHOpCodes.OpCode_MUL64C:
 					al = getA2(ctx, insn);
 					bl = getB2(ctx, insn);
-					//outx = (UInt128)((Int128)(Int64)al * (Int128)(Int64)bl);
 					outx = new UInt128(mulh64((Int64)al, (Int64)bl), al * bl);
 					DEBUGF(ctx, "MUL64C {0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08} {6:x08} {7:x08}", (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)@outx, (UInt32)(@outx >> 32), (UInt32)(@outx >> 64), (UInt32)(@outx >> 96));
 					out4(ctx, @outx);
@@ -763,14 +734,12 @@ namespace PacketCryptProof {
 					al = getA2(ctx, insn);
 					bl = getB2(ctx, insn); ;
 					@outx = new UInt128(mulhsu64((Int64)al, bl), al * bl);
-					//(UInt128)((Int128)(Int64)al * (Int128)bl);
 					DEBUGF(ctx, "MULSU64C {0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08} {6:x08} {7:x08}", (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)@outx, (UInt32)(@outx >> 32), (UInt32)(@outx >> 64), (UInt32)(@outx >> 96));
 					out4(ctx, @outx);
 					break;
 				case RHOpCodes.OpCode_MULU64C:
 					al = getA2(ctx, insn);
 					bl = getB2(ctx, insn);
-					//outx = (UInt128)al * (UInt128)bl;
 					outx = new UInt128(mulhu64(al, bl), al * bl);
 					DEBUGF(ctx, "MULU64C {0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08} {6:x08} {7:x08}", (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)@outx, (UInt32)(@outx >> 32), (UInt32)(@outx >> 64), (UInt32)(@outx >> 96));
 					out4(ctx, @outx);
