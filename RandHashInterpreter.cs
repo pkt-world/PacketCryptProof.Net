@@ -88,17 +88,27 @@ namespace PacketCryptProof {
 				return stack[(int)index];
 			}
 
-			public void PushScope() {
+			public UInt32 Pop() {
+				if (varCount == 0) throw new InvalidOperationException();
+				UInt32 ret = stack[stack.Count - 1];
+				stack.RemoveAt(stack.Count - 1);
+				varCount--;
+				return ret;
+			}
+
+			public void PushScope(int state) {
 				stack.Add(~0U);
+				scopes.Push(state);
 				scopes.Push(varCount);
 				varCount = 0;
 			}
 
-			public void PopScope() {
+			public int PopScope() {
 				stack.RemoveRange(stack.Count - varCount, varCount);
 				if (stack[stack.Count - 1] != ~0U) throw new Exception("corrupt stack");
 				stack.RemoveAt(stack.Count - 1);
 				varCount = scopes.Pop();
+				return scopes.Pop();
 			}
 
 			public UInt32 Scopes => (UInt32)scopes.Count;
@@ -236,12 +246,6 @@ namespace PacketCryptProof {
 			return (UInt64)stack.Get(regb - 1) | ((UInt64)stack.Get(regb) << 32);
 		}
 
-		private static int branch(ref Context ctx, bool a, UInt32 insn, int pc) {
-			if (DecodeInsn_imm(insn) != 2) throw new Exception("count should be 2");
-			if (a) return interpret(ref ctx, pc + 2);
-			return interpret(ref ctx, pc + 1);
-		}
-
 		private static void DEBUGF(String format, params Object[] args) {
 			//Console.WriteLine(format, args);
 		}
@@ -263,7 +267,6 @@ namespace PacketCryptProof {
 		}
 
 		private static int interpret(ref Context ctx, int pc) {
-			if (pc != 0) ctx.stack.PushScope();
 			for (; ; pc++) {
 				if (ctx.opCtr > 20000) return -1;
 				ctx.opCtr++;
@@ -292,6 +295,7 @@ namespace PacketCryptProof {
 						var ret = pc;
 						for (int i = 0; i < count; i++) {
 							ctx.loopCycle = i;
+							ctx.stack.PushScope(1);
 							ret = interpret(ref ctx, pc + 1);
 						}
 						if (ctx.opCtr > 20000) return -1;
@@ -305,11 +309,17 @@ namespace PacketCryptProof {
 						break;
 					case RHOpCodes.OpCode_IF_LIKELY:
 						DEBUGF("IF_LIKELY ({0:x08}) {1}", insn, pc);
-						pc = branch(ref ctx, (getA(ctx.stack, insn) & 7) != 0, insn, pc);
+						if (DecodeInsn_imm(insn) != 2) throw new Exception("count should be 2");
+						if ((getA(ctx.stack, insn) & 7) != 0) pc++;
+						Debug.Assert(pc + 1 != 0);
+						ctx.stack.PushScope(0);
 						break;
 					case RHOpCodes.OpCode_IF_RANDOM:
 						DEBUGF("IF_RANDOM ({0:x08}) {1}", insn, pc);
-						pc = branch(ref ctx, (getA(ctx.stack, insn) & 1) != 0, insn, pc);
+						if (DecodeInsn_imm(insn) != 2) throw new Exception("count should be 2");
+						if ((getA(ctx.stack, insn) & 1) != 0) pc++;
+						Debug.Assert(pc + 1 != 0);
+						ctx.stack.PushScope(0);
 						break;
 					case RHOpCodes.OpCode_JMP:
 						DEBUGF("JMP ({0:x08}) {1}", insn, pc);
@@ -326,8 +336,8 @@ namespace PacketCryptProof {
 							BitConverter.GetBytes(h).CopyTo(ctx.hashOut.Slice((int)ctx.hashctr * 4, 4));
 							ctx.hashctr = (ctx.hashctr + 1) % 256;
 						}
-						ctx.stack.PopScope();
-
+						int xret = ctx.stack.PopScope();
+						if (xret == 0) break;
 						return pc;
 					default:
 						doOp(ref ctx.stack, insn, op);
