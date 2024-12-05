@@ -219,29 +219,24 @@ namespace PacketCryptProof {
 			return interpret(ctx, pc + 1);
 		}
 
-		//static TextWriter debugwriter = File.CreateText("randinterp.log");
-
-		private static void DEBUGF(Context ctx, String format, params Object[] args) {
-			//for (int i = 0; i < ctx.scopes.Count; i++) debugwriter.Write("  ");
-			//debugwriter.Write("// ");
-			//debugwriter.WriteLine(format, args);
-			//debugwriter.Flush();
+		private static void DEBUGF(String format, params Object[] args) {
+			//Console.WriteLine(format, args);
 		}
 
-		private static void DEBUGS(Context ctx, String op, UInt32 a, UInt32 @out) {
-			DEBUGF(ctx, "{0} {1:x08} -> {2:x08}", op, a, @out);
+		private static void DEBUGS(String op, UInt32 a, UInt32 @out) {
+			DEBUGF("{0:x08} -> {1:x08}", op, a, @out);
 		}
-		private static void DEBUGS(Context ctx, String op, UInt32 a, UInt32 b, UInt32 @out) {
-			DEBUGF(ctx, "{0} {1:x08} {2:x08} -> {3:x08}", op, a, b, @out);
+		private static void DEBUGS(String op, UInt32 a, UInt32 b, UInt32 @out) {
+			DEBUGF("{0:x08} {1:x08} -> {2:x08}", op, a, b, @out);
 		}
-		private static void DEBUGS(Context ctx, String op, UInt32 a, UInt32 b, UInt64 outl) {
-			DEBUGF(ctx, "{0} {1:x08} {2:x08} -> {3:x08} {4:x08}", op, a, b, (UInt32)outl, (UInt32)(outl >> 32));
+		private static void DEBUGS(String op, UInt32 a, UInt32 b, UInt64 outl) {
+			DEBUGF("{0:x08} {1:x08} -> {2:x08} {3:x08}", op, a, b, (UInt32)outl, (UInt32)(outl >> 32));
 		}
-		private static void DEBUGS(Context ctx, String op, UInt64 al, UInt64 bl, UInt64 outl) {
-			DEBUGF(ctx, "{0} {1:x08} {2:x08} {3:x08} {4:x08} -> {5:x08} {6:x08}", op, (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)outl, (UInt32)(outl >> 32));
+		private static void DEBUGS(String op, UInt64 al, UInt64 bl, UInt64 outl) {
+			DEBUGF("{0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08}", op, (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)outl, (UInt32)(outl >> 32));
 		}
-		private static void DEBUGS(Context ctx, String op, UInt64 al, UInt64 bl, UInt128 outx) {
-			DEBUGF(ctx, "{0} {1:x08} {2:x08} {3:x08} {4:x08} -> {5:x08} {6:x08} {7:x08} {8:x08}", op, (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)outx, (UInt32)(outx >> 32), (UInt32)(outx >> 64), (UInt32)(outx >> 96));
+		private static void DEBUGS(String op, UInt64 al, UInt64 bl, UInt128 outx) {
+			DEBUGF("{0:x08} {1:x08} {2:x08} {3:x08} -> {4:x08} {5:x08} {6:x08} {7:x08}", op, (UInt32)al, (UInt32)(al >> 32), (UInt32)bl, (UInt32)(bl >> 32), (UInt32)outx, (UInt32)(outx >> 32), (UInt32)(outx >> 64), (UInt32)(outx >> 96));
 		}
 
 		private static int interpret(Context ctx, int pc) {
@@ -263,17 +258,17 @@ namespace PacketCryptProof {
 						var carry = (int)DecodeInsn_MEMORY_CARRY(insn);
 						var idx = (@base + ((ctx.loopCycle + carry) * step)) & (256 - 1);
 						var hi = BitConverter.ToUInt32(ctx.memory.Span.Slice(idx * 4, 4));
-						DEBUGF(ctx, "MEMORY({0}, 0x{1:x08}, {2}, {3}) -> {4:x08} ({5:x08})", ctx.loopCycle, @base, step, carry, hi, idx);
+						DEBUGF("MEMORY({0}, 0x{1:x08}, {2}, {3}) -> {4:x08} ({5:x08})", ctx.loopCycle, @base, step, carry, hi, idx);
 						out1(ctx, hi);
 						break;
 					case RHOpCodes.OpCode_IN:
 						var idx2 = (Int64)((UInt32)(DecodeInsn_imm(insn))) % 256;
 						var hi2 = BitConverter.ToUInt32(ctx.hashIn.Span.Slice((int)idx2 * 4, 4));
-						DEBUGF(ctx, "IN {0} -> {1:x08}", idx2, hi2);
+						DEBUGF("IN {0} -> {1:x08}", idx2, hi2);
 						out1(ctx, hi2);
 						break;
 					case RHOpCodes.OpCode_LOOP:
-						DEBUGF(ctx, "LOOP ({0:x08}) {1}", insn, pc);
+						DEBUGF("LOOP ({0:x08}) {1}", insn, pc);
 						var count = (int)DecodeInsn_imm(insn);
 						var ret = pc;
 						for (int i = 0; i < count; i++) {
@@ -290,24 +285,24 @@ namespace PacketCryptProof {
 						}
 						break;
 					case RHOpCodes.OpCode_IF_LIKELY:
-						DEBUGF(ctx, "IF_LIKELY ({0:x08}) {1}", insn, pc);
+						DEBUGF("IF_LIKELY ({0:x08}) {1}", insn, pc);
 						pc = branch(ctx, (getA(ctx, insn) & 7) != 0, insn, pc);
 						break;
 					case RHOpCodes.OpCode_IF_RANDOM:
-						DEBUGF(ctx, "IF_RANDOM ({0:x08}) {1}", insn, pc);
+						DEBUGF("IF_RANDOM ({0:x08}) {1}", insn, pc);
 						pc = branch(ctx, (getA(ctx, insn) & 1) != 0, insn, pc);
 						break;
 					case RHOpCodes.OpCode_JMP:
-						DEBUGF(ctx, "JMP ({0:x08}) {1}", insn, pc);
+						DEBUGF("JMP ({0:x08}) {1}", insn, pc);
 						var count2 = (insn >> 8);
 						pc += (int)count2;
 						break;
 					case RHOpCodes.OpCode_END:
-						DEBUGF(ctx, "END ({0:x08}) {1}", insn, pc);
+						DEBUGF("END ({0:x08}) {1}", insn, pc);
 						// output everything first
 						if (ctx.stack.Count - ctx.varCount <= 0) throw new Exception("insane varcount");
 						for (int i = ctx.stack.Count - ctx.varCount; i < ctx.stack.Count; i++) {
-							DEBUGF(ctx, "OUTPUT {0:x08} ({1})", ctx.stack[i], ctx.hashctr);
+							DEBUGF("OUTPUT {0:x08} ({1})", ctx.stack[i], ctx.hashctr);
 							var h = BitConverter.ToUInt32(ctx.hashOut.Span.Slice((int)ctx.hashctr * 4, 4));
 							h += ctx.stack[i];
 							BitConverter.GetBytes(h).CopyTo(ctx.hashOut.Span.Slice((int)ctx.hashctr * 4, 4));
@@ -340,20 +335,20 @@ namespace PacketCryptProof {
 					@out.U8b = (Byte)BitOperations.PopCount(a.U8b);
 					@out.U8c = (Byte)BitOperations.PopCount(a.U8c);
 					@out.U8d = (Byte)BitOperations.PopCount(a.U8d);
-					DEBUGS(ctx, "POPCNT8", a, @out);
+					DEBUGS("POPCNT8", a, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_POPCNT16:
 					a = getA(ctx, insn);
 					@out.U16a = (UInt16)BitOperations.PopCount(a.U16a);
 					@out.U16b = (UInt16)BitOperations.PopCount(a.U16b);
-					DEBUGS(ctx, "POPCNT16", a, @out);
+					DEBUGS("POPCNT16", a, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_POPCNT32:
 					a = getA(ctx, insn);
 					@out = (uint)BitOperations.PopCount(a);
-					DEBUGS(ctx, "POPCNT32", a, @out);
+					DEBUGS("POPCNT32", a, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_CLZ8:
@@ -362,20 +357,20 @@ namespace PacketCryptProof {
 					@out.U8b = (Byte)(BitOperations.LeadingZeroCount(a.U8b) - 24);
 					@out.U8c = (Byte)(BitOperations.LeadingZeroCount(a.U8c) - 24);
 					@out.U8d = (Byte)(BitOperations.LeadingZeroCount(a.U8d) - 24);
-					DEBUGS(ctx, "CLZ8", a, @out);
+					DEBUGS("CLZ8", a, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_CLZ16:
 					a = getA(ctx, insn);
 					@out.U16a = (UInt16)(BitOperations.LeadingZeroCount(a.U16a) - 16);
 					@out.U16b = (UInt16)(BitOperations.LeadingZeroCount(a.U16b) - 16);
-					DEBUGS(ctx, "CLZ16", a, @out);
+					DEBUGS("CLZ16", a, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_CLZ32:
 					a = getA(ctx, insn);
 					@out.S32 = BitOperations.LeadingZeroCount(a);
-					DEBUGS(ctx, "CLZ32", a, @out);
+					DEBUGS("CLZ32", a, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_CTZ8:
@@ -384,33 +379,33 @@ namespace PacketCryptProof {
 					@out.U8b = (Byte)Math.Min(8, BitOperations.TrailingZeroCount(a.U8b));
 					@out.U8c = (Byte)Math.Min(8, BitOperations.TrailingZeroCount(a.U8c));
 					@out.U8d = (Byte)Math.Min(8, BitOperations.TrailingZeroCount(a.U8d));
-					DEBUGS(ctx, "CTZ8", a, @out);
+					DEBUGS("CTZ8", a, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_CTZ16:
 					a = getA(ctx, insn);
 					@out.U16a = (UInt16)Math.Min(16, BitOperations.TrailingZeroCount(a.U16a));
 					@out.U16b = (UInt16)Math.Min(16, BitOperations.TrailingZeroCount(a.U16b));
-					DEBUGS(ctx, "CTZ16", a, @out);
+					DEBUGS("CTZ16", a, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_CTZ32:
 					a = getA(ctx, insn);
 					@out.S32 = BitOperations.TrailingZeroCount(a);
-					DEBUGS(ctx, "CTZ32", a, @out);
+					DEBUGS("CTZ32", a, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_BSWAP16:
 					a = getA(ctx, insn);
 					@out.U16a = BinaryPrimitives.ReverseEndianness(a.U16a);
 					@out.U16b = BinaryPrimitives.ReverseEndianness(a.U16b);
-					DEBUGS(ctx, "BSWAP16", a, @out);
+					DEBUGS("BSWAP16", a, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_BSWAP32:
 					a = getA(ctx, insn);
 					@out = BinaryPrimitives.ReverseEndianness(a);
-					DEBUGS(ctx, "BSWAP32", a, @out);
+					DEBUGS("BSWAP32", a, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_ADD8:
@@ -420,7 +415,7 @@ namespace PacketCryptProof {
 					@out.U8b = (Byte)(a.U8b + b.U8b);
 					@out.U8c = (Byte)(a.U8c + b.U8c);
 					@out.U8d = (Byte)(a.U8d + b.U8d);
-					DEBUGS(ctx, "ADD8", a, b, @out);
+					DEBUGS("ADD8", a, b, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_ADD16:
@@ -428,14 +423,14 @@ namespace PacketCryptProof {
 					b = getB(ctx, insn);
 					@out.U16a = (UInt16)(a.U16a + b.U16a);
 					@out.U16b = (UInt16)(a.U16b + b.U16b);
-					DEBUGS(ctx, "ADD16", a, b, @out);
+					DEBUGS("ADD16", a, b, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_ADD32:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
 					@out = a + b;
-					DEBUGS(ctx, "ADD32", a, b, @out);
+					DEBUGS("ADD32", a, b, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_SUB8:
@@ -445,7 +440,7 @@ namespace PacketCryptProof {
 					@out.U8b = (Byte)(a.U8b - b.U8b);
 					@out.U8c = (Byte)(a.U8c - b.U8c);
 					@out.U8d = (Byte)(a.U8d - b.U8d);
-					DEBUGS(ctx, "SUB8", a, b, @out);
+					DEBUGS("SUB8", a, b, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_SUB16:
@@ -453,14 +448,14 @@ namespace PacketCryptProof {
 					b = getB(ctx, insn);
 					@out.U16a = (UInt16)(a.U16a - b.U16a);
 					@out.U16b = (UInt16)(a.U16b - b.U16b);
-					DEBUGS(ctx, "SUB16", a, b, @out);
+					DEBUGS("SUB16", a, b, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_SUB32:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
 					@out = a - b;
-					DEBUGS(ctx, "SUB32", a, b, @out);
+					DEBUGS("SUB32", a, b, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_SHLL8:
@@ -470,7 +465,7 @@ namespace PacketCryptProof {
 					@out.U8b = (Byte)(a.U8b << (b.U8b & 7));
 					@out.U8c = (Byte)(a.U8c << (b.U8c & 7));
 					@out.U8d = (Byte)(a.U8d << (b.U8d & 7));
-					DEBUGS(ctx, "SHLL8", a, b, @out);
+					DEBUGS("SHLL8", a, b, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_SHLL16:
@@ -478,14 +473,14 @@ namespace PacketCryptProof {
 					b = getB(ctx, insn);
 					@out.U16a = (UInt16)(a.U16a << (b.U16a & 15));
 					@out.U16b = (UInt16)(a.U16b << (b.U16b & 15));
-					DEBUGS(ctx, "SHLL16", a, b, @out);
+					DEBUGS("SHLL16", a, b, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_SHLL32:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
 					@out = a << (b.S32 & 31);
-					DEBUGS(ctx, "SHLL32", a, b, @out);
+					DEBUGS("SHLL32", a, b, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_SHRL8:
@@ -495,7 +490,7 @@ namespace PacketCryptProof {
 					@out.U8b = (Byte)(a.U8b >> (b.U8b & 7));
 					@out.U8c = (Byte)(a.U8c >> (b.U8c & 7));
 					@out.U8d = (Byte)(a.U8d >> (b.U8d & 7));
-					DEBUGS(ctx, "SHRL8", a, b, @out);
+					DEBUGS("SHRL8", a, b, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_SHRL16:
@@ -503,14 +498,14 @@ namespace PacketCryptProof {
 					b = getB(ctx, insn);
 					@out.U16a = (UInt16)(a.U16a >> (b.U16a & 15));
 					@out.U16b = (UInt16)(a.U16b >> (b.U16b & 15));
-					DEBUGS(ctx, "SHRL16", a, b, @out);
+					DEBUGS("SHRL16", a, b, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_SHRL32:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
 					@out = a >> (b.S32 & 31);
-					DEBUGS(ctx, "SHRL32", a, b, @out);
+					DEBUGS("SHRL32", a, b, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_SHRA8:
@@ -520,7 +515,7 @@ namespace PacketCryptProof {
 					@out.U8b = (Byte)(a.S8b >> (b.U8b & 7));
 					@out.U8c = (Byte)(a.S8c >> (b.U8c & 7));
 					@out.U8d = (Byte)(a.S8d >> (b.U8d & 7));
-					DEBUGS(ctx, "SHRA8", a, b, @out);
+					DEBUGS("SHRA8", a, b, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_SHRA16:
@@ -528,14 +523,14 @@ namespace PacketCryptProof {
 					b = getB(ctx, insn);
 					@out.U16a = (UInt16)(a.S16a >> (b.U16a & 15));
 					@out.U16b = (UInt16)(a.S16b >> (b.U16b & 15));
-					DEBUGS(ctx, "SHRA16", a, b, @out);
+					DEBUGS("SHRA16", a, b, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_SHRA32:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
 					@out.S32 = a.S32 >> (b.S32 & 31);
-					DEBUGS(ctx, "SHRA32", a, b, @out);
+					DEBUGS("SHRA32", a, b, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_ROTL8:
@@ -545,7 +540,7 @@ namespace PacketCryptProof {
 					@out.U8b = (Byte)((a.U8b << (b.U8b & 7)) | (a.U8b >> (8 - (b.U8b & 7))));
 					@out.U8c = (Byte)((a.U8c << (b.U8c & 7)) | (a.U8c >> (8 - (b.U8c & 7))));
 					@out.U8d = (Byte)((a.U8d << (b.U8d & 7)) | (a.U8d >> (8 - (b.U8d & 7))));
-					DEBUGS(ctx, "ROTL8", a, b, @out);
+					DEBUGS("ROTL8", a, b, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_ROTL16:
@@ -553,14 +548,14 @@ namespace PacketCryptProof {
 					b = getB(ctx, insn);
 					@out.U16a = (UInt16)((a.U16a << (b.U16a & 15)) | (a.U16a >> (16 - (b.U16a & 15))));
 					@out.U16b = (UInt16)((a.U16b << (b.U16b & 15)) | (a.U16b >> (16 - (b.U16b & 15))));
-					DEBUGS(ctx, "ROTL16", a, b, @out);
+					DEBUGS("ROTL16", a, b, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_ROTL32:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
 					@out = (a.U32 << (b.S32 & 31)) | (a.U32 >> ((32 - b.S32) & 31));
-					DEBUGS(ctx, "ROTL32", a, b, @out);
+					DEBUGS("ROTL32", a, b, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_MUL8:
@@ -570,7 +565,7 @@ namespace PacketCryptProof {
 					@out.U8b = (Byte)(a.U8b * b.U8b);
 					@out.U8c = (Byte)(a.U8c * b.U8c);
 					@out.U8d = (Byte)(a.U8d * b.U8d);
-					DEBUGS(ctx, "MUL8", a, b, @out);
+					DEBUGS("MUL8", a, b, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_MUL16:
@@ -578,35 +573,35 @@ namespace PacketCryptProof {
 					b = getB(ctx, insn);
 					@out.U16a = (UInt16)(a.U16a * b.U16a);
 					@out.U16b = (UInt16)(a.U16b * b.U16b);
-					DEBUGS(ctx, "MUL16", a, b, @out);
+					DEBUGS("MUL16", a, b, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_MUL32:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
 					@out = a * b;
-					DEBUGS(ctx, "MUL32", a, b, @out);
+					DEBUGS("MUL32", a, b, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_AND:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
 					@out = a & b;
-					DEBUGS(ctx, "AND", a, b, @out);
+					DEBUGS("AND", a, b, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_OR:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
 					@out = a | b;
-					DEBUGS(ctx, "OR", a, b, @out);
+					DEBUGS("OR", a, b, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_XOR:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
 					@out = a ^ b;
-					DEBUGS(ctx, "XOR", a, b, @out);
+					DEBUGS("XOR", a, b, @out);
 					out1(ctx, @out);
 					break;
 				case RHOpCodes.OpCode_ADD8C:
@@ -616,7 +611,7 @@ namespace PacketCryptProof {
 					outl.U16b = (UInt16)((UInt16)a.U8b + (UInt16)b.U8b);
 					outl.U16c = (UInt16)((UInt16)a.U8c + (UInt16)b.U8c);
 					outl.U16d = (UInt16)((UInt16)a.U8d + (UInt16)b.U8d);
-					DEBUGS(ctx, "ADD8C", a, b, outl);
+					DEBUGS("ADD8C", a, b, outl);
 					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_ADD16C:
@@ -624,14 +619,14 @@ namespace PacketCryptProof {
 					b = getB(ctx, insn);
 					outl.U32a = (uint)a.U16a + (uint)b.U16a;
 					outl.U32b = (uint)a.U16b + (uint)b.U16b;
-					DEBUGS(ctx, "ADD16C", a, b, outl);
+					DEBUGS("ADD16C", a, b, outl);
 					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_ADD32C:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
 					outl = (UInt64)a + (UInt64)b;
-					DEBUGS(ctx, "ADD32C", a, b, outl);
+					DEBUGS("ADD32C", a, b, outl);
 					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_SUB8C:
@@ -641,7 +636,7 @@ namespace PacketCryptProof {
 					outl.U16b = (UInt16)((UInt16)a.U8b - (UInt16)b.U8b);
 					outl.U16c = (UInt16)((UInt16)a.U8c - (UInt16)b.U8c);
 					outl.U16d = (UInt16)((UInt16)a.U8d - (UInt16)b.U8d);
-					DEBUGS(ctx, "SUB8C", a, b, outl);
+					DEBUGS("SUB8C", a, b, outl);
 					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_SUB16C:
@@ -649,14 +644,14 @@ namespace PacketCryptProof {
 					b = getB(ctx, insn);
 					outl.U32a = (uint)((uint)a.U16a - (uint)b.U16a);
 					outl.U32b = (uint)((uint)a.U16b - (uint)b.U16b);
-					DEBUGS(ctx, "SUB16C", a, b, outl);
+					DEBUGS("SUB16C", a, b, outl);
 					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_SUB32C:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
 					outl = (UInt64)a - (UInt64)b;
-					DEBUGS(ctx, "SUB32C", a, b, outl);
+					DEBUGS("SUB32C", a, b, outl);
 					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_MUL8C:
@@ -666,7 +661,7 @@ namespace PacketCryptProof {
 					outl.U16b = (UInt16)((Int16)a.S8b * (Int16)b.S8b);
 					outl.U16c = (UInt16)((Int16)a.S8c * (Int16)b.S8c);
 					outl.U16d = (UInt16)((Int16)a.S8d * (Int16)b.S8d);
-					DEBUGS(ctx, "MUL8C", a, b, outl);
+					DEBUGS("MUL8C", a, b, outl);
 					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_MUL16C:
@@ -674,14 +669,14 @@ namespace PacketCryptProof {
 					b = getB(ctx, insn);
 					outl.S32a = (int)a.S16a * (int)b.S16a;
 					outl.S32b = (int)a.S16b * (int)b.S16b;
-					DEBUGS(ctx, "MUL16C", a, b, outl);
+					DEBUGS("MUL16C", a, b, outl);
 					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_MUL32C:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
 					outl = (UInt64)((Int64)a.S32 * (Int64)b.S32);
-					DEBUGS(ctx, "MUL32C", a, b, outl);
+					DEBUGS("MUL32C", a, b, outl);
 					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_MULSU8C:
@@ -691,7 +686,7 @@ namespace PacketCryptProof {
 					outl.U16b = (UInt16)((Int16)a.S8b * (Int16)b.U8b);
 					outl.U16c = (UInt16)((Int16)a.S8c * (Int16)b.U8c);
 					outl.U16d = (UInt16)((Int16)a.S8d * (Int16)b.U8d);
-					DEBUGS(ctx, "MULSU8C", a, b, outl);
+					DEBUGS("MULSU8C", a, b, outl);
 					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_MULSU16C:
@@ -699,14 +694,14 @@ namespace PacketCryptProof {
 					b = getB(ctx, insn);
 					outl.S32a = (int)a.S16a * (int)b.U16a;
 					outl.S32b = (int)a.S16b * (int)b.U16b;
-					DEBUGS(ctx, "MULSU16C", a, b, outl);
+					DEBUGS("MULSU16C", a, b, outl);
 					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_MULSU32C:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
 					outl = (UInt64)((Int64)a.S32 * (Int64)b);
-					DEBUGS(ctx, "MULSU32C", a, b, outl);
+					DEBUGS("MULSU32C", a, b, outl);
 					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_MULU8C:
@@ -716,7 +711,7 @@ namespace PacketCryptProof {
 					outl.U16b = (UInt16)((UInt16)a.U8b * (UInt16)b.U8b);
 					outl.U16c = (UInt16)((UInt16)a.U8c * (UInt16)b.U8c);
 					outl.U16d = (UInt16)((UInt16)a.U8d * (UInt16)b.U8d);
-					DEBUGS(ctx, "MULU8C", a, b, outl);
+					DEBUGS("MULU8C", a, b, outl);
 					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_MULU16C:
@@ -724,105 +719,105 @@ namespace PacketCryptProof {
 					b = getB(ctx, insn);
 					outl.U32a = (uint)a.U16a * (uint)b.U16a;
 					outl.U32b = (uint)a.U16b * (uint)b.U16b;
-					DEBUGS(ctx, "MULU16C", a, b, outl);
+					DEBUGS("MULU16C", a, b, outl);
 					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_MULU32C:
 					a = getA(ctx, insn);
 					b = getB(ctx, insn);
 					outl = (UInt64)a * (UInt64)b;
-					DEBUGS(ctx, "MULU32C", a, b, outl);
+					DEBUGS("MULU32C", a, b, outl);
 					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_ADD64:
 					al = getA2(ctx, insn);
 					bl = getB2(ctx, insn);
 					outl = al + bl;
-					DEBUGS(ctx, "ADD64", al, bl, outl);
+					DEBUGS("ADD64", al, bl, outl);
 					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_SUB64:
 					al = getA2(ctx, insn);
 					bl = getB2(ctx, insn);
 					outl = al - bl;
-					DEBUGS(ctx, "SUB64", al, bl, outl);
+					DEBUGS("SUB64", al, bl, outl);
 					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_SHLL64:
 					al = getA2(ctx, insn);
 					bl = getB2(ctx, insn);
 					outl = (UInt64)(al << ((int)bl & 63));
-					DEBUGS(ctx, "SHLL64", al, bl, outl);
+					DEBUGS("SHLL64", al, bl, outl);
 					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_SHRL64:
 					al = getA2(ctx, insn);
 					bl = getB2(ctx, insn);
 					outl = (UInt64)(al >> ((int)bl & 63));
-					DEBUGS(ctx, "SHRL64", al, bl, outl);
+					DEBUGS("SHRL64", al, bl, outl);
 					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_SHRA64:
 					al = getA2(ctx, insn);
 					bl = getB2(ctx, insn);
 					outl = (UInt64)((Int64)al >> ((int)bl & 63));
-					DEBUGS(ctx, "SHRA64", al, bl, outl);
+					DEBUGS("SHRA64", al, bl, outl);
 					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_ROTL64:
 					al = getA2(ctx, insn);
 					bl = getB2(ctx, insn);
 					outl = BitOperations.RotateLeft(al, (int)bl);
-					DEBUGS(ctx, "ROTL64", al, bl, outl);
+					DEBUGS("ROTL64", al, bl, outl);
 					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_ROTR64:
 					al = getA2(ctx, insn);
 					bl = getB2(ctx, insn);
 					outl = BitOperations.RotateRight(al, (int)bl);
-					DEBUGS(ctx, "ROTR64", al, bl, outl);
+					DEBUGS("ROTR64", al, bl, outl);
 					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_MUL64:
 					al = getA2(ctx, insn);
 					bl = getB2(ctx, insn);
 					outl = al * bl;
-					DEBUGS(ctx, "MUL64", al, bl, outl);
+					DEBUGS("MUL64", al, bl, outl);
 					out2(ctx, outl);
 					break;
 				case RHOpCodes.OpCode_ADD64C:
 					al = getA2(ctx, insn);
 					bl = getB2(ctx, insn);
 					outx = (UInt128)al + (UInt128)bl;
-					DEBUGS(ctx, "ADD64C", al, bl, outx);
+					DEBUGS("ADD64C", al, bl, outx);
 					out4(ctx, outx);
 					break;
 				case RHOpCodes.OpCode_SUB64C:
 					al = getA2(ctx, insn);
 					bl = getB2(ctx, insn);
 					outx = (UInt128)al - (UInt128)bl;
-					DEBUGS(ctx, "SUB64C", al, bl, outx);
+					DEBUGS("SUB64C", al, bl, outx);
 					out4(ctx, outx);
 					break;
 				case RHOpCodes.OpCode_MUL64C:
 					al = getA2(ctx, insn);
 					bl = getB2(ctx, insn);
 					outx = (UInt128)((Int128)(Int64)al * (Int128)(Int64)bl);
-					DEBUGS(ctx, "MUL64C", al, bl, outx);
+					DEBUGS("MUL64C", al, bl, outx);
 					out4(ctx, outx);
 					break;
 				case RHOpCodes.OpCode_MULSU64C:
 					al = getA2(ctx, insn);
 					bl = getB2(ctx, insn); ;
 					outx = (UInt128)((Int128)(Int64)al * (Int128)bl);
-					DEBUGS(ctx, "MULSU64C", al, bl, outx);
+					DEBUGS("MULSU64C", al, bl, outx);
 					out4(ctx, outx);
 					break;
 				case RHOpCodes.OpCode_MULU64C:
 					al = getA2(ctx, insn);
 					bl = getB2(ctx, insn);
 					outx = (UInt128)al * (UInt128)bl;
-					DEBUGS(ctx, "MULU64C", al, bl, outx);
+					DEBUGS("MULU64C", al, bl, outx);
 					out4(ctx, outx);
 					break;
 				default:
