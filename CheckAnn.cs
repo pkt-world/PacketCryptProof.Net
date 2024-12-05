@@ -105,7 +105,7 @@ namespace PacketCryptProof {
 			UInt32 workBits = GetWorkBits(ann);
 
 			UInt32[] prog = null;
-			Byte[] progmem = null;
+			UInt32[] progmem = null;
 			Span<Byte> v1Seed = stackalloc Byte[2 * 64];
 
 			if (version > 0) {
@@ -117,24 +117,25 @@ namespace PacketCryptProof {
 				annHash0.CopyTo(v1Seed.Slice(64 * 1, 64)); //Buf_OBJCPY(&v1Seed[1], &annHash0);
 				Crypto.generichash_blake2b(v1Seed.Slice(0, 64), v1Seed); //Hash_COMPRESS64_OBJ(&v1Seed[0], &v1Seed);
 
-				progmem = new byte[8192];
+				progmem = new UInt32[8192 / 4];
 				prog = Announce_createProg(progmem, v1Seed.Slice(0, 32));
 			}
 
 			Byte[] state = new Byte[2048];
 			CryptoCycle.Initialize(state, annHash1.Slice(0, 32), softNonce);
 			ulong itemNo = 0;
-			Byte[] item = new Byte[1024];
+			UInt32[] item = new UInt32[1024 / 4];
+			Span<Byte> item_bytes = MemoryMarshal.AsBytes(new Span<UInt32>(item));
 			for (int i = 0; i < 4; i++) {
 				itemNo = CryptoCycle.GetItemNumber(state) % Announce_TABLE_SZ;
 				if (version > 0) {
-					Announce_mkitem2(itemNo, item, v1Seed.Slice(32, 32), prog, progmem);
+					Announce_mkitem2(itemNo, item_bytes, v1Seed.Slice(32, 32), prog, progmem);
 				} else {
-					MkItem((uint)itemNo, item, annHash0.Slice(0, 32));
-					var prog_2 = RandGen.Generate((new Span<Byte>(item)).Slice(32 * 31, 32));
+					MkItem((uint)itemNo, item_bytes, annHash0.Slice(0, 32));
+					var prog_2 = RandGen.Generate(item_bytes.Slice(32 * 31, 32));
 					if (!RandHashInterpreter.Interpret(prog_2, state, item, 4)) return -1;
 				}
-				CryptoCycle.Update(state, item, null);
+				CryptoCycle.Update(state, item_bytes, null);
 			}
 
 			CryptoCycle.Finalize(state);
@@ -147,13 +148,13 @@ namespace PacketCryptProof {
 
 				// Need to re-compute the item because we are proving the original value
 				prog = Announce_createProg(progmem, annHash0.Slice(0, 32));
-				Announce_mkitem2(itemNo, item, annHash0.Slice(32, 32), prog, progmem);
+				Announce_mkitem2(itemNo, item_bytes, annHash0.Slice(32, 32), prog, progmem);
 			} else {
-				if (!(new Span<Byte>(item)).Slice(0, 40).SequenceEqual(ann.Slice(88 + 896, 40))) return Validate_checkAnn_INVAL_ITEM4;
+				if (!item_bytes.Slice(0, 40).SequenceEqual(ann.Slice(88 + 896, 40))) return Validate_checkAnn_INVAL_ITEM4;
 			}
 
 			Span<Byte> itemHash = stackalloc Byte[64];
-			Crypto.generichash_blake2b(itemHash, item);
+			Crypto.generichash_blake2b(itemHash, item_bytes);
 			if (!AnnMerkle__isItemValid(Announce_MERKLE_DEPTH, ann.Slice(88), itemHash, (int)itemNo)) return Validate_checkAnn_INVAL;
 
 			if (!Difficulty.CheckHash((new Span<Byte>(state)).Slice(0, 32), workBits)) return Validate_checkAnn_INSUF_POW;
@@ -165,19 +166,19 @@ namespace PacketCryptProof {
 			return Validate_checkAnn_OK;
 		}
 
-		private static UInt32[] Announce_createProg(Span<Byte> memory, Span<Byte> seed) {
-			if (memory.Length != 8192) throw new ArgumentOutOfRangeException("memory");
-			CryptoCycle.Hash_expand(memory, seed, 0);
+		private static UInt32[] Announce_createProg(Span<UInt32> memory, Span<Byte> seed) {
+			if (memory.Length != 8192 / 4) throw new ArgumentOutOfRangeException("memory");
+			CryptoCycle.Hash_expand(MemoryMarshal.AsBytes(memory), seed, 0);
 			UInt32[] prog = RandGen.Generate(seed);
-			MemoryMarshal.AsBytes(new Span<UInt32>(prog)).CopyTo(memory);
+			prog.CopyTo(memory);
 			return prog;
 		}
 
-		private static int Announce_mkitem2(UInt64 itemNo, Span<Byte> item, Span<Byte> seed, Memory<UInt32> prog, Memory<Byte> progmem) {
+		private static int Announce_mkitem2(UInt64 itemNo, Span<Byte> item, Span<Byte> seed, Span<UInt32> prog, Span<UInt32> progmem) {
 			Byte[] state = new Byte[2048];
 			CryptoCycle.Initialize(state, seed, itemNo);
-			var memoryBeginning = itemNo % (uint)((progmem.Length / 4) - 256);
-			var memorySlice = progmem.Slice(4 * (int)memoryBeginning, 4 * 256);
+			var memoryBeginning = itemNo % (uint)(progmem.Length - 256);
+			var memorySlice = progmem.Slice((int)memoryBeginning, 256);
 			if (!RandHashInterpreter.Interpret(prog, state, memorySlice, 2)) return -1;
 			CryptoCycle.MakeFuzzable(state);
 			CryptoCycle.Crypt(state);
