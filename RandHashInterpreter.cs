@@ -96,19 +96,27 @@ namespace PacketCryptProof {
 				return ret;
 			}
 
-			public void PushScope(int state) {
+			public void PushScope(int isloop, int loopCycle, int pc, int count) {
 				stack.Add(~0U);
-				scopes.Push(state);
+				scopes.Push(isloop);
+				scopes.Push(loopCycle);
+				scopes.Push(pc);
+				scopes.Push(count);
 				scopes.Push(varCount);
 				varCount = 0;
 			}
 
-			public int PopScope() {
+			public (int, int, int, int) PopScope() {
 				stack.RemoveRange(stack.Count - varCount, varCount);
 				if (stack[stack.Count - 1] != ~0U) throw new Exception("corrupt stack");
 				stack.RemoveAt(stack.Count - 1);
 				varCount = scopes.Pop();
-				return scopes.Pop();
+
+				int count = scopes.Pop();
+				int pc = scopes.Pop();
+				int loopCycle = scopes.Pop();
+				int isloop = scopes.Pop();
+				return (isloop, loopCycle, pc, count);
 			}
 
 			public UInt32 Scopes => (UInt32)scopes.Count;
@@ -292,34 +300,32 @@ namespace PacketCryptProof {
 					case RHOpCodes.OpCode_LOOP:
 						DEBUGF("LOOP ({0:x08}) {1}", insn, pc);
 						var count = (int)DecodeInsn_imm(insn);
-						var ret = pc;
-						for (int i = 0; i < count; i++) {
-							ctx.loopCycle = i;
-							ctx.stack.PushScope(1);
-							ret = interpret(ref ctx, pc + 1);
+						if (count == 0) {
+							if (pc == ctx.prog.Length - 1) {
+								if (ctx.stack.Count != 0) throw new Exception("leftover stack");
+								if (ctx.stack.Scopes != 0) throw new Exception("leftover scopes");
+								if (ctx.stack.ScopeStart != 0) throw new Exception("varCount not 0");
+								return pc;
+							}
+							break;
 						}
-						if (ctx.opCtr > 20000) return -1;
-						pc = ret;
-						if (pc == ctx.prog.Length - 1) {
-							if (ctx.stack.Count != 0) throw new Exception("leftover stack");
-							if (ctx.stack.Scopes != 0) throw new Exception("leftover scopes");
-							if (ctx.stack.ScopeStart != 0) throw new Exception("varCount not 0");
-							return pc;
-						}
+						Debug.Assert(pc + 1 != 0);
+						ctx.stack.PushScope(1, ctx.loopCycle, pc, count);
+						ctx.loopCycle = 0;
 						break;
 					case RHOpCodes.OpCode_IF_LIKELY:
 						DEBUGF("IF_LIKELY ({0:x08}) {1}", insn, pc);
 						if (DecodeInsn_imm(insn) != 2) throw new Exception("count should be 2");
 						if ((getA(ctx.stack, insn) & 7) != 0) pc++;
 						Debug.Assert(pc + 1 != 0);
-						ctx.stack.PushScope(0);
+						ctx.stack.PushScope(0, 0, 0, 0);
 						break;
 					case RHOpCodes.OpCode_IF_RANDOM:
 						DEBUGF("IF_RANDOM ({0:x08}) {1}", insn, pc);
 						if (DecodeInsn_imm(insn) != 2) throw new Exception("count should be 2");
 						if ((getA(ctx.stack, insn) & 1) != 0) pc++;
 						Debug.Assert(pc + 1 != 0);
-						ctx.stack.PushScope(0);
+						ctx.stack.PushScope(0, 0, 0, 0);
 						break;
 					case RHOpCodes.OpCode_JMP:
 						DEBUGF("JMP ({0:x08}) {1}", insn, pc);
@@ -336,9 +342,26 @@ namespace PacketCryptProof {
 							BitConverter.GetBytes(h).CopyTo(ctx.hashOut.Slice((int)ctx.hashctr * 4, 4));
 							ctx.hashctr = (ctx.hashctr + 1) % 256;
 						}
-						int xret = ctx.stack.PopScope();
-						if (xret == 0) break;
-						return pc;
+						var (isloop, loopCycle, startPc, loopCount) = ctx.stack.PopScope();
+						if (isloop == 1) {
+							ctx.loopCycle++;
+							if (ctx.loopCycle < loopCount) {
+								ctx.stack.PushScope(1, loopCycle, startPc, loopCount);
+								pc = startPc;
+							} else {
+								ctx.loopCycle = loopCycle;
+								if (ctx.opCtr > 20000) return -1;
+								if (pc == ctx.prog.Length - 1) {
+									if (ctx.stack.Count != 0) throw new Exception("leftover stack");
+									if (ctx.stack.Scopes != 0) throw new Exception("leftover scopes");
+									if (ctx.stack.ScopeStart != 0) throw new Exception("varCount not 0");
+									return pc;
+								}
+							}
+						} else {
+							Debug.Assert(isloop == 0);
+						}
+						break;
 					default:
 						doOp(ref ctx.stack, insn, op);
 						break;
