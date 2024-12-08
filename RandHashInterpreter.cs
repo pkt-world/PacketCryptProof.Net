@@ -6,16 +6,13 @@ using System.Runtime.InteropServices;
 namespace PacketCryptProof {
 	internal static partial class RandHashInterpreter {
 		[LibraryImport("packetcrypt.dll")]
-		private static partial int RandHash_interpret(ReadOnlySpan<UInt32> progbuf, Span<Byte> ccState, Span<UInt32> memory, int progLen, UInt32 memorySizeBytes, int cycles);
+		private static partial int RandHash_interpret(ReadOnlySpan<UInt32> progbuf, Span<UInt32> ccState, Span<UInt32> memory, int progLen, UInt32 memorySizeBytes, int cycles);
 
-		public unsafe static Boolean Interpret(Span<UInt32> prog, Span<Byte> ccState, Span<UInt32> memory, int cycles) {
+		public unsafe static Boolean Interpret(Span<UInt32> prog, Span<UInt32> ccState, ReadOnlySpan<UInt32> memory, int cycles) {
 			if (memory.Length != 256) throw new ArgumentOutOfRangeException("memory");
-			if (ccState.Length != 2048) throw new ArgumentOutOfRangeException("ccState");
+			if (ccState.Length != 2048 / 4) throw new ArgumentOutOfRangeException("ccState");
 
-			Span<Byte> ccState2 = ccState.ToArray();
-			Span<UInt32> memory2 = memory.ToArray();
-
-			RandHash_interpret(prog.ToArray(), ccState2, memory2, prog.Length, (uint)memory.Length * 4, cycles);
+			//Span<UInt32> ccState2 = ccState.ToArray();
 
 			var ctx = new Context();
 			ctx.memory = memory;
@@ -39,8 +36,10 @@ namespace PacketCryptProof {
 				ctx.hashIn = tmp;
 			}
 
-			Debug.Assert(memory.SequenceEqual(memory2));
-			Debug.Assert(ccState.SequenceEqual(ccState2));
+			//Span<UInt32> memory2 = memory.ToArray();
+			//RandHash_interpret(prog.ToArray(), ccState2, memory2, prog.Length, (uint)memory.Length * 4, cycles);
+			//Debug.Assert(ccState.SequenceEqual(ccState2));
+			//if (!ccState.SequenceEqual(ccState2)) throw new InvalidDataException("RandProg execution mismatch");
 
 			return true;
 		}
@@ -48,11 +47,11 @@ namespace PacketCryptProof {
 		ref struct Context {
 			public Stack stack = new Stack();
 			public int opCtr;
-			public Span<UInt32> prog;
+			public ReadOnlySpan<UInt32> prog;
 
-			public Span<Byte> hashIn;
-			public Span<Byte> hashOut;
-			public Span<UInt32> memory;
+			public Span<UInt32> hashIn;
+			public Span<UInt32> hashOut;
+			public ReadOnlySpan<UInt32> memory;
 			public Int64 hashctr;
 			public int loopCycle;
 
@@ -63,7 +62,7 @@ namespace PacketCryptProof {
 			public Stack() { }
 
 			private List<UInt32> stack = new List<uint>();
-			private Stack<int> scopes = new Stack<int>();
+			private Stack<(int, int, int, int, int)> scopes = new();
 			private int varCount;
 
 			public void Push1(UInt32 val) {
@@ -98,11 +97,7 @@ namespace PacketCryptProof {
 
 			public void PushScope(int isloop, int loopCycle, int pc, int count) {
 				stack.Add(~0U);
-				scopes.Push(isloop);
-				scopes.Push(loopCycle);
-				scopes.Push(pc);
-				scopes.Push(count);
-				scopes.Push(varCount);
+				scopes.Push((isloop, loopCycle, pc, count, varCount));
 				varCount = 0;
 			}
 
@@ -110,12 +105,9 @@ namespace PacketCryptProof {
 				stack.RemoveRange(stack.Count - varCount, varCount);
 				if (stack[stack.Count - 1] != ~0U) throw new Exception("corrupt stack");
 				stack.RemoveAt(stack.Count - 1);
-				varCount = scopes.Pop();
+				var (isloop, loopCycle, pc, count, prevVarCount) = scopes.Pop();
+				varCount = prevVarCount;
 
-				int count = scopes.Pop();
-				int pc = scopes.Pop();
-				int loopCycle = scopes.Pop();
-				int isloop = scopes.Pop();
 				return (isloop, loopCycle, pc, count);
 			}
 
@@ -293,7 +285,7 @@ namespace PacketCryptProof {
 						break;
 					case RHOpCodes.OpCode_IN:
 						var idx2 = (Int64)((UInt32)(DecodeInsn_imm(insn))) % 256;
-						var hi2 = BitConverter.ToUInt32(ctx.hashIn.Slice((int)idx2 * 4, 4));
+						var hi2 = ctx.hashIn[(int)idx2];
 						DEBUGF("IN {0} -> {1:x08}", idx2, hi2);
 						ctx.stack.Push1(hi2);
 						break;
@@ -337,9 +329,7 @@ namespace PacketCryptProof {
 						// output everything first
 						for (uint i = ctx.stack.ScopeStart; i < ctx.stack.Count; i++) {
 							DEBUGF("OUTPUT {0:x08} ({1})", ctx.stack.Get(i), ctx.hashctr);
-							var h = BitConverter.ToUInt32(ctx.hashOut.Slice((int)ctx.hashctr * 4, 4));
-							h += ctx.stack.Get(i);
-							BitConverter.GetBytes(h).CopyTo(ctx.hashOut.Slice((int)ctx.hashctr * 4, 4));
+							ctx.hashOut[(int)ctx.hashctr] += ctx.stack.Get(i);
 							ctx.hashctr = (ctx.hashctr + 1) % 256;
 						}
 						var (isloop, loopCycle, startPc, loopCount) = ctx.stack.PopScope();

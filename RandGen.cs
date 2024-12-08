@@ -35,10 +35,6 @@ namespace PacketCryptProof {
 		private static partial int RandGen_generate(Span<UInt32> buf, ReadOnlySpan<Byte> seed);
 
 		public static UInt32[] Generate(Span<Byte> seed) {
-			UInt32[] insns = new uint[Conf_RandGen_MAX_INSNS];
-			int len = RandGen_generate(insns, seed);
-			Array.Resize(ref insns, len);
-
 			UInt32 budget = Conf_RandGen_INITIAL_BUDGET;
 			Context ctx = new Context();
 			seed.CopyTo(ctx.randseed);
@@ -48,7 +44,11 @@ namespace PacketCryptProof {
 
 			if (ctx.tooBig) return null;
 
-			Debug.Assert(MemoryExtensions.SequenceEqual<UInt32>(insns, ctx.insns.ToArray()));
+			//UInt32[] insns = new uint[Conf_RandGen_MAX_INSNS];
+			//int len = RandGen_generate(insns, seed);
+			//Array.Resize(ref insns, len);
+			//Debug.Assert(MemoryExtensions.SequenceEqual<UInt32>(insns, ctx.insns.ToArray()));
+			//if (!MemoryExtensions.SequenceEqual<UInt32>(insns, ctx.insns.ToArray())) throw new InvalidDataException("RandProg mismatch");
 
 			return ctx.insns.ToArray();
 		}

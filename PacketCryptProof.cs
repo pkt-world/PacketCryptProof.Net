@@ -41,25 +41,31 @@
 			if (!CheckAnn.CheckSignature(ann2, ann2sig)) return Validate_checkBlock_ANN_SIG_INVALID(2);
 			if (!CheckAnn.CheckSignature(ann3, ann3sig)) return Validate_checkBlock_ANN_SIG_INVALID(3);
 
-			Byte[][] cp;
+			Span<Byte> cpbuf = stackalloc Byte[4 * 32];
+			Span<Boolean> hascp = stackalloc Boolean[4];
+			hascp.Fill(false);
 			{
 				//contentProofIdx2
-				Byte[] buf = new byte[32];
+				Span<Byte> buf = stackalloc byte[32];
 				Crypto.generichash_blake2b(buf, blockHeader);
-				UInt32 proofIdx = BitConverter.ToUInt32(buf, 0) ^ pcpNonce;
+				UInt32 proofIdx = BitConverter.ToUInt32(buf) ^ pcpNonce;
 
 				//SplitContentProof
 				if (pcpVersion <= 1) {
-					cp = SplitContentProof(contentProof, proofIdx, ann0, ann1, ann2, ann3);
+					int offset = 0;
 					for (int i = 0; i < 4; i++) {
 						ReadOnlySpan<Byte> ann = i switch { 0 => ann0, 1 => ann1, 2 => ann2, 3 => ann3 };
-						if (CheckAnn.GetContentLength(ann) <= 32) continue;
-						if (cp[i] == null) return Validate_checkBlock_ANN_CONTENT_INVALID_ | 0;
-						if (!CheckAnn.CheckContentProof(ann, proofIdx, cp[i])) return Validate_checkBlock_ANN_CONTENT_INVALID_ | 0;
+						UInt32 content_length = CheckAnn.GetContentLength(ann);
+						if (content_length <= 32) continue;
+						ReadOnlySpan<Byte> cp = SplitContentProof(contentProof, proofIdx, ref offset, content_length);
+						if (cp == null) return Validate_checkBlock_ANN_CONTENT_INVALID_ | 0;
+						if (!CheckAnn.CheckContentProof(ann, proofIdx, cp)) return Validate_checkBlock_ANN_CONTENT_INVALID_ | 0;
+						cp.Slice(0, 32).CopyTo(cpbuf.Slice(i * 32, 32));
+						hascp[i] = true;
 					}
+					if (offset != contentProof.Length) throw new Exception("SplitContentProof: dangling bytes after the content proof");
 				} else {
 					if (contentProof != null) return Validate_checkBlock_PCP_INVAL;
-					cp = new byte[4][];
 				}
 			}
 
@@ -67,17 +73,16 @@
 
 			// Check that final work result meets difficulty requirement
 			Span<UInt64> annIndexes = stackalloc UInt64[4];
-			int chk = checkPcHash(blockHeader, pcpNonce, pcpVersion, ann0, ann1, ann2, ann3, cp[0], cp[1], cp[2], cp[3], annLeastWork, annCount, annIndexes);
+			int chk = checkPcHash(blockHeader, pcpNonce, pcpVersion, ann0, ann1, ann2, ann3, hascp[0] ? cpbuf.Slice(0, 32) : null, hascp[1] ? cpbuf.Slice(32, 32) : null, hascp[2] ? cpbuf.Slice(64, 32) : null, hascp[3] ? cpbuf.Slice(96, 32) : null, annLeastWork, annCount, annIndexes);
 
-			Span<Byte> annHashes = new byte[4 * 32];
+			Span<Byte> annHashes = stackalloc byte[4 * 32];
 
 			// Validate announcements
 			for (int i = 0; i < PacketCrypt_NUM_ANNS; i++) {
 				ReadOnlySpan<Byte> ann = i switch { 0 => ann0, 1 => ann1, 2 => ann2, 3 => ann3 };
 				UInt32 parentBlockHeight = CheckAnn.GetParentBlockHeight(ann);
-				//Console.WriteLine("Ann {0} has parentBlockHeight {1}", i, parentBlockHeight);
 				if (parentBlockHeight > blockHeight) return Validate_checkBlock_ANN_INVALID(i);
-				if (getBlockHashCb != null /*&& parentBlockHeight > 0*/) {
+				if (getBlockHashCb != null) {
 					Byte[] blockHash = getBlockHashCb(parentBlockHeight);
 					if (blockHash == null) return Validate_checkBlock_ANN_INVALID(i);
 					if (CheckAnn.Validate(ann, blockHash, pcpVersion) != 0) return Validate_checkBlock_ANN_INVALID(i);
@@ -99,34 +104,26 @@
 			return chk;
 		}
 
-		private static Byte[][] SplitContentProof(ReadOnlySpan<Byte> contentProof, UInt32 proofIdx, ReadOnlySpan<Byte> ann0, ReadOnlySpan<Byte> ann1, ReadOnlySpan<Byte> ann2, ReadOnlySpan<Byte> ann3) {
-			int offset = 0;
-			var ret = new Byte[4][];
-			if (contentProof == null) return ret;
-			for (int i = 0; i < 4; i++) {
-				ReadOnlySpan<Byte> ann = i switch { 0 => ann0, 1 => ann1, 2 => ann2, 3 => ann3 };
-				UInt32 contentLength = CheckAnn.GetContentLength(ann);
-				if (contentLength <= 32) continue;
-				var totalBlocks = contentLength / 32;
-				if (totalBlocks * 32 < contentLength) totalBlocks++;
-				var blockToProve = proofIdx % totalBlocks;
-				var depth = CheckAnn.Util_log2ceil(totalBlocks);
-				var length = 32;
-				UInt32 blockSize = 32;
-				for (int j = 0; j < depth; j++) {
-					if (blockSize * (blockToProve ^ 1) >= contentLength) {
-						blockToProve >>= 1;
-						blockSize <<= 1;
-						continue;
-					}
-					length += 32;
+		private static ReadOnlySpan<Byte> SplitContentProof(ReadOnlySpan<Byte> contentProof, UInt32 proofIdx, ref int offset, UInt32 contentLength) {
+			if (contentLength <= 32) return null;
+			var totalBlocks = contentLength / 32;
+			if (totalBlocks * 32 < contentLength) totalBlocks++;
+			var blockToProve = proofIdx % totalBlocks;
+			var depth = CheckAnn.Util_log2ceil(totalBlocks);
+			var length = 32;
+			UInt32 blockSize = 32;
+			for (int j = 0; j < depth; j++) {
+				if (blockSize * (blockToProve ^ 1) >= contentLength) {
 					blockToProve >>= 1;
 					blockSize <<= 1;
+					continue;
 				}
-				ret[i] = contentProof.Slice(offset, length).ToArray();
-				offset += length;
+				length += 32;
+				blockToProve >>= 1;
+				blockSize <<= 1;
 			}
-			if (offset != contentProof.Length) throw new Exception("SplitContentProof: dangling bytes after the content proof");
+			var ret = contentProof.Slice(offset, length).ToArray();
+			offset += length;
 			return ret;
 		}
 

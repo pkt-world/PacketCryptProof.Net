@@ -1,27 +1,26 @@
 ﻿using System.Runtime.InteropServices;
-using System.Text;
 
 namespace PacketCryptProof {
 	public static class CryptoCycle {
 		public static void Initialize(Span<Byte> state, ReadOnlySpan<Byte> seed, UInt64 nonce) {
 			if (state.Length != 2048) throw new ArgumentException("state");
 			Hash_expand(state, seed, 0);
-			BitConverter.GetBytes(nonce).CopyTo(state.Slice(0, 8));
+			MemoryMarshal.Write(state.Slice(0, 8), nonce);
 			MakeFuzzable(state);
 		}
 
 		internal static void Hash_expand(Span<Byte> buff, ReadOnlySpan<Byte> seed, UInt32 num) {
-			Byte[] nonce = new byte[12];
-			BitConverter.GetBytes(num).CopyTo(nonce, 0);
-			Encoding.ASCII.GetBytes("PC_EXPND").CopyTo(nonce, 4);
-			buff.Clear();
-			Crypto.stream_chacha20_ietf_xor_ic(buff, buff, nonce, 0, seed);
+			Span<UInt32> nonce = stackalloc UInt32[3];
+			nonce[0] = num;
+			nonce[1] = 0x455F4350; //PC_E
+			nonce[2] = 0x444E5058; //XPND
+			Crypto.stream_chacha20_ietf(buff, MemoryMarshal.AsBytes(nonce), seed);
 		}
 
 		public static void MakeFuzzable(Span<Byte> state) {
-			UInt32 data = BitConverter.ToUInt32(state.Slice(16,4));
+			UInt32 data = MemoryMarshal.Read<UInt32>(state.Slice(16, 4));
 			data = (data & 0x00FFFFFF) | (32 << 17);
-			BitConverter.GetBytes(data).CopyTo(state.Slice(12, 4));
+			MemoryMarshal.Write(state.Slice(12, 4), data);
 		}
 
 		public static void Update(Span<Byte> state, ReadOnlySpan<Byte> item, ReadOnlySpan<Byte> contentBlock) {
@@ -92,9 +91,9 @@ namespace PacketCryptProof {
 
 		private static void CryptoCycle_setBits(Span<Byte> hdr, int begin, int count, UInt32 val) {
 			val &= (1u << count) - 1;
-			UInt32 data = BitConverter.ToUInt32(hdr.Slice(12, 4));
+			UInt32 data = MemoryMarshal.Read<UInt32>(hdr.Slice(12, 4));
 			data = (data & (~(((1u << count) - 1) << begin))) | ((val) << begin);
-			BitConverter.GetBytes(data).CopyTo(hdr.Slice(12, 4));
+			MemoryMarshal.Write(hdr.Slice(12, 4), data);
 		}
 
 		private static UInt32 CryptoCycle_getAddLen(ReadOnlySpan<Byte> hdr) {

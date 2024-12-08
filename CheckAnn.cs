@@ -73,17 +73,17 @@ namespace PacketCryptProof {
 			if (announcement.Length != 1024) throw new ArgumentOutOfRangeException("announcement");
 			if (parentBlockHash.Length != 32) throw new ArgumentOutOfRangeException("parentBlockHash");
 
-			Span<Byte> caAnnHashOut = new Byte[32];
-			int caret = Validate_checkAnn(caAnnHashOut, announcement, parentBlockHash, new UInt32[2048 + 1]);
+			//Span<Byte> caAnnHashOut = stackalloc Byte[32];
+			//int caret = Validate_checkAnn(caAnnHashOut, announcement, parentBlockHash, new UInt32[2048 + 1]);
 
-			Span<Byte> annHash = new Byte[32];
+			Span<Byte> annHash = stackalloc Byte[32];
 			Crypto.generichash_blake2b(annHash, announcement);
 
 			UInt32 version = GetVersion(announcement);
 			if (version > 0 && GetParentBlockHeight(announcement) < 103869) return Validate_checkAnn_ANN_VERSION_NOT_ALLOWED;
 			if (pcpVersion > 1 && version == 0) return Validate_checkAnn_ANN_VERSION_MISMATCH;
 
-			Span<Byte> _ann = new Byte[1024];
+			Span<Byte> _ann = stackalloc Byte[1024];
 			ReadOnlySpan<Byte> ann = announcement;
 			ann.Slice(0, 88).CopyTo(_ann); //Copy header
 			Span<Byte> _ann_merkleProof = _ann.Slice(88, 896);
@@ -104,8 +104,8 @@ namespace PacketCryptProof {
 
 			UInt32 workBits = GetWorkBits(ann);
 
-			UInt32[] prog = null;
-			UInt32[] progmem = null;
+			Span<UInt32> prog = null;
+			Span<UInt32> progmem = null;
 			Span<Byte> v1Seed = stackalloc Byte[2 * 64];
 
 			if (version > 0) {
@@ -121,11 +121,11 @@ namespace PacketCryptProof {
 				prog = Announce_createProg(progmem, v1Seed.Slice(0, 32));
 			}
 
-			Byte[] state = new Byte[2048];
+			Span<Byte> state = stackalloc Byte[2048];
 			CryptoCycle.Initialize(state, annHash1.Slice(0, 32), softNonce);
 			ulong itemNo = 0;
-			UInt32[] item = new UInt32[1024 / 4];
-			Span<Byte> item_bytes = MemoryMarshal.AsBytes(new Span<UInt32>(item));
+			Span<UInt32> item = stackalloc UInt32[1024 / 4];
+			Span<Byte> item_bytes = MemoryMarshal.AsBytes(item);
 			for (int i = 0; i < 4; i++) {
 				itemNo = CryptoCycle.GetItemNumber(state) % Announce_TABLE_SZ;
 				if (version > 0) {
@@ -133,7 +133,7 @@ namespace PacketCryptProof {
 				} else {
 					MkItem((uint)itemNo, item_bytes, annHash0.Slice(0, 32));
 					var prog_2 = RandGen.Generate(item_bytes.Slice(32 * 31, 32));
-					if (!RandHashInterpreter.Interpret(prog_2, state, item, 4)) return -1;
+					if (!RandHashInterpreter.Interpret(prog_2, MemoryMarshal.Cast<Byte, UInt32>(state), item, 4)) return -1;
 				}
 				CryptoCycle.Update(state, item_bytes, null);
 			}
@@ -157,11 +157,11 @@ namespace PacketCryptProof {
 			Crypto.generichash_blake2b(itemHash, item_bytes);
 			if (!AnnMerkle__isItemValid(Announce_MERKLE_DEPTH, ann.Slice(88), itemHash, (int)itemNo)) return Validate_checkAnn_INVAL;
 
-			if (!Difficulty.CheckHash((new Span<Byte>(state)).Slice(0, 32), workBits)) return Validate_checkAnn_INSUF_POW;
+			if (!Difficulty.CheckHash(state.Slice(0, 32), workBits)) return Validate_checkAnn_INSUF_POW;
 
-			Debug.Assert(caAnnHashOut.SequenceEqual((new Span<Byte>(state)).Slice(0, 32)));
+			//Debug.Assert(caAnnHashOut.SequenceEqual(state.Slice(0, 32)));
 
-			Debug.Assert(caret == 0);
+			//Debug.Assert(caret == 0);
 
 			return Validate_checkAnn_OK;
 		}
@@ -174,16 +174,16 @@ namespace PacketCryptProof {
 			return prog;
 		}
 
-		private static int Announce_mkitem2(UInt64 itemNo, Span<Byte> item, Span<Byte> seed, Span<UInt32> prog, Span<UInt32> progmem) {
-			Byte[] state = new Byte[2048];
+		private static bool Announce_mkitem2(UInt64 itemNo, Span<Byte> item, Span<Byte> seed, Span<UInt32> prog, Span<UInt32> progmem) {
+			Span<Byte> state = stackalloc Byte[2048];
 			CryptoCycle.Initialize(state, seed, itemNo);
 			var memoryBeginning = itemNo % (uint)(progmem.Length - 256);
 			var memorySlice = progmem.Slice((int)memoryBeginning, 256);
-			if (!RandHashInterpreter.Interpret(prog, state, memorySlice, 2)) return -1;
+			if (!RandHashInterpreter.Interpret(prog, MemoryMarshal.Cast<Byte, UInt32>(state), memorySlice, 2)) return false;
 			CryptoCycle.MakeFuzzable(state);
 			CryptoCycle.Crypt(state);
-			(new Span<Byte>(state)).Slice(0, 1024).CopyTo(item);
-			return 0;
+			state.Slice(0, 1024).CopyTo(item);
+			return true;
 		}
 
 		private static void Announce_crypt(Span<Byte> ann, ReadOnlySpan<Byte> state) {
@@ -211,9 +211,9 @@ namespace PacketCryptProof {
 			if (totalBlocks * 32 < contentLength) totalBlocks++;
 			var blockToProve = proofIdx % totalBlocks;
 			var depth = Util_log2ceil(totalBlocks);
-			Span<Byte> buf = new Byte[64];
+			Span<Byte> buf = stackalloc Byte[64];
 			int offset = 0;
-			var hash = cpb.Slice(offset, 32).ToArray();
+			cpb.Slice(offset, 32).CopyTo(buf);
 			offset += 32;
 			UInt32 blockSize = 32;
 			for (int i = 0; i < depth; i++) {
@@ -222,14 +222,14 @@ namespace PacketCryptProof {
 					blockSize <<= 1;
 					continue;
 				}
-				hash.CopyTo(buf.Slice((int)((blockToProve) & 1) * 32, 32));
+				if (((blockToProve) & 1) != 0) buf.Slice(0, 32).CopyTo(buf.Slice(32, 32));
 				cpb.Slice(offset, 32).CopyTo(buf.Slice((int)((~blockToProve) & 1) * 32, 32));
 				offset += 32;
 				blockToProve >>= 1;
 				blockSize <<= 1;
-				Crypto.generichash_blake2b(hash, buf);
+				Crypto.generichash_blake2b(buf.Slice(0, 32), buf);
 			}
-			return ann.Slice(24, 32).SequenceEqual(hash);
+			return ann.Slice(24, 32).SequenceEqual(buf.Slice(0, 32));
 		}
 
 		private static void MkItem(uint itemNo, Span<Byte> item, ReadOnlySpan<Byte> seed) {
@@ -242,7 +242,7 @@ namespace PacketCryptProof {
 		}
 
 		private static void memocycle(Span<Byte> item, int bufcount, int cycles) {
-			Span<Byte> tmpbuf = new byte[128];
+			Span<Byte> tmpbuf = stackalloc Byte[128];
 			for (int cycle = 0; cycle < cycles; cycle++) {
 				for (int i = 0; i < bufcount; i++) {
 					var p = (i - 1 + bufcount) % bufcount;
