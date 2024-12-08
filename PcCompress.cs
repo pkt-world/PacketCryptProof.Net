@@ -10,17 +10,32 @@ namespace PacketCryptProof {
 		PcCompress_Entry_t[] entries;
 
 		[StructLayout(LayoutKind.Sequential, Size = 32)]
-		public struct Buf32_t {
+		private struct Buf32_t {
 			public UInt64 a, b, c, d;
+
+			public static bool operator ==(Buf32_t left, Buf32_t right) {
+				return left.a == right.a && left.b == right.b && left.c == right.c && left.d == right.d;
+			}
+			public static bool operator !=(Buf32_t left, Buf32_t right) {
+				return !(left == right);
+			}
 		}
 
-		public struct Entry_t {
+		[StructLayout(LayoutKind.Sequential, Size = 48)]
+		private struct Entry_t {
 			public Buf32_t hash;
 			public UInt64 start;
 			public UInt64 end;
+
+			public static bool operator ==(Entry_t left, Entry_t right) {
+				return left.start == right.start && left.end == right.end && left.hash == right.hash;
+			}
+			public static bool operator !=(Entry_t left, Entry_t right) {
+				return !(left == right);
+			}
 		}
 
-		public struct PcCompress_Entry_t {
+		private struct PcCompress_Entry_t {
 			public UInt16 childLeft;
 			public UInt16 childRight;
 			public UInt16 parent;
@@ -28,7 +43,9 @@ namespace PacketCryptProof {
 			public Entry_t e;
 		}
 
-		public static PcCompress_t PcCompress_mkEntryTable(UInt64 annCount, UInt64[] annNumbers) {
+		private static PcCompress_t PcCompress_mkEntryTable(UInt64 annCount, ReadOnlySpan<UInt64> annNumbers) {
+			PcCompress_t out2 = PcCompress_mkEntryTable2(annCount, annNumbers);
+#if DEBUG
 			const int PacketCrypt_NUM_ANNS = 4;
 			for (int i = 0; i < PacketCrypt_NUM_ANNS; i++) if (annNumbers[i] >= annCount) return null;
 			int branchHeight = CheckAnn.Util_log2ceil(annCount);
@@ -45,19 +62,16 @@ namespace PacketCryptProof {
 			UInt16 nextFree = 0;
 			mkEntries(ret, annPaths, 0, 0, ref nextFree, UInt16.MaxValue, pathCount, annCount, 0);
 			ret.count = nextFree;
-
-			PcCompress_t out2 = PcCompress_mkEntryTable2(annCount, annNumbers);
 			Debug.Assert(ret.count == out2.count);
 			Debug.Assert(ret.branchHeight == out2.branchHeight);
 			Debug.Assert(MemoryExtensions.SequenceEqual(new ReadOnlySpan<PcCompress_Entry_t>(ret.entries), new ReadOnlySpan<PcCompress_Entry_t>(out2.entries)));
+#endif
 			return out2;
 		}
 
-		private static PcCompress_t PcCompress_mkEntryTable2(UInt64 annCount, UInt64[] annNumbers) {
+		private static PcCompress_t PcCompress_mkEntryTable2(UInt64 annCount, ReadOnlySpan<UInt64> annNumbers) {
 			const int PacketCrypt_NUM_ANNS = 4;
-			for (int i = 0; i < PacketCrypt_NUM_ANNS; i++) {
-				if (annNumbers[i] >= annCount) return null;
-			}
+			for (int i = 0; i < PacketCrypt_NUM_ANNS; i++) if (annNumbers[i] >= annCount) return null;
 			int branchHeight = CheckAnn.Util_log2ceil(annCount);
 			int capacity = branchHeight * PacketCrypt_NUM_ANNS * 3;
 			PcCompress_t ret = new PcCompress_t();
@@ -65,9 +79,7 @@ namespace PacketCryptProof {
 			ret.count = capacity;
 			ret.branchHeight = branchHeight;
 			UInt16 nextFree = 0;
-			if (mkEntries2(ret, annNumbers, 0, (ushort)branchHeight, UInt16.MaxValue, ref nextFree, annCount) != 0) {
-				return null;
-			}
+			mkEntries2(ret, annNumbers, 0, (ushort)branchHeight, UInt16.MaxValue, ref nextFree, annCount);
 			ret.count = nextFree;
 			return ret;
 		}
@@ -77,21 +89,21 @@ namespace PacketCryptProof {
 		}
 
 		private static UInt64 Util_reverse64(UInt64 x) {
-			x = ((((x) >> (1)) & (0x5555555555555555ul)) | (((x) & (0x5555555555555555ul)) << (1)));
-			x = ((((x) >> (2)) & (0x3333333333333333ul)) | (((x) & (0x3333333333333333ul)) << (2)));
-			x = ((((x) >> (4)) & (0x0F0F0F0F0F0F0F0Ful)) | (((x) & (0x0F0F0F0F0F0F0F0Ful)) << (4)));
+			x = ((x >> 1) & 0x5555555555555555ul) | ((x & 0x5555555555555555ul) << 1);
+			x = ((x >> 2) & 0x3333333333333333ul) | ((x & 0x3333333333333333ul) << 2);
+			x = ((x >> 4) & 0x0F0F0F0F0F0F0F0Ful) | ((x & 0x0F0F0F0F0F0F0F0Ful) << 4);
 			return BinaryPrimitives.ReverseEndianness(x);
 		}
 
-		public const UInt16 PcCompress_F_COMPUTABLE = 1;
-		public const UInt16 PcCompress_F_PAD_ENTRY = (1 << 1);
-		public const UInt16 PcCompress_F_LEAF = (1 << 2);
-		public const UInt16 PcCompress_F_RIGHT = (1 << 3);
-		public const UInt16 PcCompress_F_PAD_SIBLING = (1 << 4);
-		public const UInt16 PcCompress_F_FIRST_ENTRY = (1 << 5); // 0x20
-		public const UInt16 PcCompress_F_HAS_HASH = (1 << 8);
-		public const UInt16 PcCompress_F_HAS_RANGE = (1 << 9);
-		public const UInt16 PcCompress_F_HAS_START = (1 << 10);
+		private const UInt16 PcCompress_F_COMPUTABLE = 1;
+		private const UInt16 PcCompress_F_PAD_ENTRY = 1 << 1;
+		private const UInt16 PcCompress_F_LEAF = 1 << 2;
+		private const UInt16 PcCompress_F_RIGHT = 1 << 3;
+		private const UInt16 PcCompress_F_PAD_SIBLING = 1 << 4;
+		private const UInt16 PcCompress_F_FIRST_ENTRY = 1 << 5; // 0x20
+		private const UInt16 PcCompress_F_HAS_HASH = 1 << 8;
+		private const UInt16 PcCompress_F_HAS_RANGE = 1 << 9;
+		private const UInt16 PcCompress_F_HAS_START = 1 << 10;
 
 		private static void mkEntries(PcCompress_t tbl, UInt64[] annPaths, UInt64 bits, int depth, ref UInt16 nextFree, UInt16 parentNum, UInt64 pathCount, UInt64 annCount, UInt16 right) {
 			UInt16 eNum = nextFree;
@@ -114,21 +126,15 @@ namespace PacketCryptProof {
 				}
 				Debug.Assert(depth != tbl.branchHeight);
 
-
 				e.childLeft = nextFree;
 				mkEntries(tbl, annPaths, bits, depth + 1, ref nextFree, eNum, pathCount, annCount, 0);
 				e.childRight = nextFree;
 				UInt64 nextBits = bits | (((UInt64)1) << depth);
-				mkEntries(tbl, annPaths, nextBits, depth + 1, ref nextFree,
-					eNum, pathCount, annCount, PcCompress_F_RIGHT);
+				mkEntries(tbl, annPaths, nextBits, depth + 1, ref nextFree, eNum, pathCount, annCount, PcCompress_F_RIGHT);
 
 				e.flags = (UInt16)(right | PcCompress_F_COMPUTABLE);
-				if ((tbl.entries[e.childRight].flags & PcCompress_F_PAD_ENTRY) != 0) {
-					tbl.entries[e.childLeft].flags |= PcCompress_F_PAD_SIBLING;
-				}
-				if ((bits & mask) == 0) {
-					e.flags |= PcCompress_F_FIRST_ENTRY;
-				}
+				if ((tbl.entries[e.childRight].flags & PcCompress_F_PAD_ENTRY) != 0) tbl.entries[e.childLeft].flags |= PcCompress_F_PAD_SIBLING;
+				if ((bits & mask) == 0) e.flags |= PcCompress_F_FIRST_ENTRY;
 				return;
 			}
 
@@ -147,16 +153,11 @@ namespace PacketCryptProof {
 
 			// it's a sibling for which data must be provided
 			e.flags = right;
-			if (depth == tbl.branchHeight) {
-				e.flags |= PcCompress_F_LEAF;
-			}
-			if ((bits & mask) == 0) {
-				e.flags |= PcCompress_F_FIRST_ENTRY;
-			}
-			return;
+			if (depth == tbl.branchHeight) e.flags |= PcCompress_F_LEAF;
+			if ((bits & mask) == 0) e.flags |= PcCompress_F_FIRST_ENTRY;
 		}
 
-		private static int mkEntries2(PcCompress_t tbl, UInt64[] annNumbers, UInt64 bits, UInt16 iDepth, UInt16 parentNum, ref UInt16 nextFree, UInt64 annCount) {
+		private static void mkEntries2(PcCompress_t tbl, ReadOnlySpan<UInt64> annNumbers, UInt64 bits, UInt16 iDepth, UInt16 parentNum, ref UInt16 nextFree, UInt64 annCount) {
 			UInt16 eNum = nextFree;
 			Debug.Assert(eNum < tbl.count);
 			nextFree = (ushort)(eNum + 1);
@@ -178,21 +179,19 @@ namespace PacketCryptProof {
 					// this entry IS an announcement
 					e.childLeft = UInt16.MaxValue;
 					e.childRight = UInt16.MaxValue;
-					return 0;
+					return;
 				}
 				Debug.Assert((flags & PcCompress_F_LEAF) == 0);
 
 				e.childLeft = nextFree;
-				Debug.Assert(mkEntries2(tbl, annNumbers, bits, (ushort)(iDepth - 1), eNum, ref nextFree, annCount) == 0);
+				mkEntries2(tbl, annNumbers, bits, (ushort)(iDepth - 1), eNum, ref nextFree, annCount);
 
 				e.childRight = nextFree;
 				UInt64 nextBits = bits | (((UInt64)1) << (iDepth - 1));
-				Debug.Assert(mkEntries2(tbl, annNumbers, nextBits, (ushort)(iDepth - 1), eNum, ref nextFree, annCount) == 0);
+				mkEntries2(tbl, annNumbers, nextBits, (ushort)(iDepth - 1), eNum, ref nextFree, annCount);
 
-				if ((tbl.entries[e.childRight].flags & PcCompress_F_PAD_ENTRY) != 0) {
-					tbl.entries[e.childLeft].flags |= PcCompress_F_PAD_SIBLING;
-				}
-				return 0;
+				if ((tbl.entries[e.childRight].flags & PcCompress_F_PAD_ENTRY) != 0) tbl.entries[e.childLeft].flags |= PcCompress_F_PAD_SIBLING;
+				return;
 			}
 
 			// Not the parent of any announcement
@@ -204,12 +203,11 @@ namespace PacketCryptProof {
 				Debug.Assert((flags & PcCompress_F_RIGHT) != 0);
 				e.flags = (UInt16)(flags | PcCompress_F_PAD_ENTRY | PcCompress_F_HAS_HASH | PcCompress_F_HAS_RANGE | PcCompress_F_HAS_START);
 				MemoryMarshal.AsBytes(new Span<Entry_t>(ref e.e)).Fill(0xff);
-				return 0;
+				return;
 			}
 
 			// it's a sibling for which data must be provided
 			e.flags = flags;
-			return 0;
 		}
 
 		private static ref PcCompress_Entry_t getEntryByIndex(PcCompress_t tbl, UInt16 num) {
@@ -234,22 +232,23 @@ namespace PacketCryptProof {
 			return ref e;
 		}
 
-		private static ref PcCompress_Entry_t PcCompress_getParent(PcCompress_t tbl, in PcCompress_Entry_t e) {
+		private static ref PcCompress_Entry_t PcCompress_getParent(PcCompress_t tbl, ref PcCompress_Entry_t e) {
 			if (e.parent >= tbl.count) {
 				Debug.Assert(e.parent == UInt16.MaxValue);
-				//Debug.Assert(e == tbl->entries);
+				Debug.Assert(tbl.entries[0].e == e.e);
 				return ref Unsafe.NullRef<PcCompress_Entry_t>();
 			}
 			return ref getEntryByIndex(tbl, e.parent);
 		}
 
-		private static ref PcCompress_Entry_t PcCompress_getSibling(PcCompress_t tbl, in PcCompress_Entry_t e) {
-			UInt16 num = (UInt16)Array.IndexOf(tbl.entries, e); // (e - tbl.entries);
-			ref PcCompress_Entry_t p = ref PcCompress_getParent(tbl, e);
+		private static ref PcCompress_Entry_t PcCompress_getSibling(PcCompress_t tbl, ref PcCompress_Entry_t e) {
+			ref PcCompress_Entry_t p = ref PcCompress_getParent(tbl, ref e);
 			if (Unsafe.IsNullRef(ref p)) return ref Unsafe.NullRef<PcCompress_Entry_t>();
-			UInt16 sib = (p.childLeft == num) ? p.childRight : p.childLeft;
-			Debug.Assert(((p.childLeft == num) ? 1 : (p.childRight == num ? 1 : 0)) != 0);
-			return ref getEntryByIndex(tbl, sib);
+			ref PcCompress_Entry_t left = ref getEntryByIndex(tbl, p.childLeft);
+			ref PcCompress_Entry_t right = ref getEntryByIndex(tbl, p.childRight);
+			Debug.Assert(left.e == e.e || right.e == e.e);
+			if (left.e == e.e) return ref right;
+			else return ref left;
 		}
 
 		private static bool PcCompress_hasExplicitRange(in PcCompress_Entry_t e) {
@@ -269,14 +268,12 @@ namespace PacketCryptProof {
 		}
 
 		private static Boolean IS_FFFF(ref Entry_t x) {
-			//_Static_assert(Buf_SIZEOF(x) <= 48, ""); \
-			//!memcmp((x), FFFF, Buf_SIZEOF(x)); \
 			return !MemoryExtensions.ContainsAnyExcept(MemoryMarshal.AsBytes(new ReadOnlySpan<Entry_t>(ref x)), (Byte)0xFF);
 		}
 
 		public static int PacketCryptProof_hashProof(Span<Byte> hashOut, Span<Byte> annHashes, UInt64 totalAnns, ReadOnlySpan<UInt64> annIndexes, ReadOnlySpan<Byte> cpcp) {
 			// We need to bump the numbers to account for the zero entry
-			UInt64[] annIdxs = new ulong[4];
+			Span<UInt64> annIdxs = stackalloc ulong[4];
 			for (int i = 0; i < 4; i++) annIdxs[i] = (annIndexes[i] % totalAnns) + 1;
 			totalAnns++;
 
@@ -315,7 +312,7 @@ namespace PacketCryptProof {
 				// same announcement used in two proofs OR two of the announcements are neighbors
 				if ((e.flags & PcCompress_F_HAS_START) != 0) continue; 
 
-				ref PcCompress_Entry_t sib = ref PcCompress_getSibling(tbl, e);
+				ref PcCompress_Entry_t sib = ref PcCompress_getSibling(tbl, ref e);
 
 				if (PcCompress_HAS_ALL(sib.flags, (PcCompress_F_PAD_ENTRY | PcCompress_F_HAS_START))) {
 					// revert this back to a range to simplify code below
@@ -346,7 +343,7 @@ namespace PacketCryptProof {
 				ref PcCompress_Entry_t e = ref PcCompress_getAnn(tbl, annIdxs[i]);
 				Debug.Assert(PcCompress_HAS_ALL(e.flags, (PcCompress_F_HAS_HASH | PcCompress_F_HAS_RANGE | PcCompress_F_HAS_START)));
 				for (; ; ) {
-					ref PcCompress_Entry_t parent = ref PcCompress_getParent(tbl, e);
+					ref PcCompress_Entry_t parent = ref PcCompress_getParent(tbl, ref e);
 
 					// hit the root, this means we're done.
 					// i may not be equal to PacketCrypt_NUM_ANNS-1 if there is a duplicate announcement
@@ -355,7 +352,7 @@ namespace PacketCryptProof {
 					// Parent has already been computed, dupe or neighboring anns
 					if ((parent.flags & PcCompress_F_HAS_HASH) != 0) break;
 
-					ref PcCompress_Entry_t sib = ref PcCompress_getSibling(tbl, e);
+					ref PcCompress_Entry_t sib = ref PcCompress_getSibling(tbl, ref e);
 					Debug.Assert(!Unsafe.IsNullRef(ref sib));
 
 					// We can't compute any further because we need to compute the other
